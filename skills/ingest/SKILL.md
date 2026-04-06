@@ -19,18 +19,20 @@ Version: **0.1.0**
 ## Flow
 
 ```
-1. Download/read the source
+1. Download the source — ORIGINAL, not a summary
+   a. Save original file: artifacts/{uuid}/original.html (or .pdf, .txt, etc.)
+   b. Download embedded images/assets to artifacts/{uuid}/assets/
+   c. Convert to markdown: artifacts/{uuid}/index.md
+   Principle: better to save too much than lose something.
 2. Generate UUID v7
-3. Save to artifacts/{uuid}/
-   ├── index.md       ← content (or manifest for multi-file)
-   └── original.*     ← original file if applicable
-4. Read the original, extract key ideas
-5. Present takeaways to user, propose:
+3. Read the full original artifact, extract key ideas
+4. Present takeaways to user, propose:
    - bib/{uuid}.md
    - wiki page(s)
    - MOC updates
-6. User approves / adjusts
-7. Create files, update index/MOCs
+5. User approves / adjusts
+6. Create files, update index/MOCs
+7. **Pre-commit check:** verify artifacts/{uuid}/index.md AND original.* exist on disk
 8. Commit: "ingest: {source title}"
 ```
 
@@ -70,7 +72,18 @@ All wiki pages follow the format in `skills/wiki/SKILL.md`.
 
 ## Artifacts
 
-- Single-file artifact: `index.md` IS the content
-- Multi-file artifact: `index.md` is a manifest listing files
+Artifacts preserve the original source material as faithfully as possible.
+
+```
+artifacts/{uuid}/
+├── original.*     ← raw download (HTML, PDF, etc.) — always saved
+├── index.md       ← markdown conversion of the original (full content, not a summary)
+└── assets/        ← images, diagrams, attachments (if any)
+```
+
+- `original.*` is the raw file as downloaded — never processed by LLM
+- `index.md` is a faithful markdown conversion — all text, headings, lists, code blocks preserved verbatim. NO summarization, NO extraction, NO LLM rewriting.
+- `assets/` contains any embedded images or files referenced by the source
 - Never published — originals may be copyrighted
 - Only LLM-generated summaries (in bib/) are public
+- When using WebFetch, instruct it to return verbatim markdown, not a summary. Prefer `curl` + local conversion when possible.
