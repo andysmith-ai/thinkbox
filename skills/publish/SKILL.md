@@ -17,7 +17,7 @@ Take approved xettel card text and prepare it for publication in `x.md` — the 
 
 ## Output file
 
-`x.md` at workspace root (not in git). The file has a template/instructions section at the top separated from content by `===============================`. **Never modify anything above the separator.**
+`x.md` at workspace root (not in git). Single-slot buffer — always contains only the current card to publish. Each new card replaces the previous content entirely.
 
 ## Post format
 
@@ -55,8 +55,8 @@ Card text here. https://x.com/andysmith_ai/status/<ref_id>
 
 ## Rules
 
-1. **Append only.** Always append below the `===============================` separator. Never overwrite or delete existing content above it.
-2. **One card at a time.** If a card depends on a status ID that doesn't exist yet (e.g. reply_to a card not yet published), do not output it. Wait for the user to publish the dependency and provide the status ID first.
+1. **One card at a time.** `x.md` contains only the current card to publish. When the user provides a status ID and the agent writes the next card, the previous content is replaced. The file is a single-slot buffer, not a log.
+2. **Wait for dependencies.** If a card depends on a status ID that doesn't exist yet (e.g. reply_to a card not yet published), do not output it. Wait for the user to publish the dependency and provide the status ID first.
 3. **Ready to paste.** The code block contains exactly what gets pasted into X. No markdown, no wikilinks. If there's a ref link or source URL, it's already appended to the text inside the code block.
 4. **`Reply to: root`** for root cards — makes it explicit this is intentional, not a missing value.
 5. **Character limits apply.** Body only: 280. Body + 1 URL in text: 257. Body + 2 URLs: 234.
@@ -68,7 +68,25 @@ Card text here. https://x.com/andysmith_ai/status/<ref_id>
 3. Agent creates `content/x/{status_id}.md` with proper frontmatter.
 4. If there are more cards, agent writes the next card into `x.md` (with the real `Reply to:` URL if it depended on the previous card's ID).
 5. Repeat 2–4 until all cards are published.
-6. Agent commits all created files (`xettel: ...`).
+6. Agent updates MOCs and wiki pages (see graph integration below).
+7. Agent commits all created files and navigation updates together (`xettel: ...`).
+
+## After publishing: graph integration
+
+### Navigation (agent's job)
+
+Before committing, the agent updates the navigation tree:
+- Add links to new cards in relevant MOCs (`content/wiki/moc-*.md`).
+- Update wiki pages if the card adds a new angle to an existing topic.
+- Commit everything together — cards and navigation updates — in one commit.
+
+### Bridges (user's decision)
+
+The agent scans existing cards and suggests potential bridges — but never creates them without the user's approval. A suggestion looks like:
+
+> Bridge idea: this card connects to [card X text] — because [reason]. Want to create a bridge?
+
+If the user approves, formulate the bridge card and continue the publish flow.
 
 ## What this skill does NOT do
 
