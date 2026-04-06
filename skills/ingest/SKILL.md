@@ -19,21 +19,22 @@ Version: **0.1.0**
 ## Flow
 
 ```
-1. Download the source — ORIGINAL, not a summary
-   a. Save original file: artifacts/{uuid}/original.html (or .pdf, .txt, etc.)
-   b. Download embedded images/assets to artifacts/{uuid}/assets/
-   c. Convert to markdown: artifacts/{uuid}/index.md
+1. Generate UUID v7
+2. Download the source — ORIGINAL, not a summary
+   a. wget -p -k into artifacts/{uuid}/raw/
+   b. pandoc the HTML to artifacts/{uuid}/index.md
+   c. tar.gz raw/ into artifacts/{uuid}/original.tar.gz, delete raw/
    Principle: better to save too much than lose something.
-2. Generate UUID v7
-3. Read the full original artifact, extract key ideas
+   All commands in a single chained shell call (cwd resets between calls).
+3. Read the full index.md, extract key ideas
 4. Present takeaways to user, propose:
    - bib/{uuid}.md
    - wiki page(s)
    - MOC updates
 5. User approves / adjusts
 6. Create files, update index/MOCs
-7. **Pre-commit check:** verify artifacts/{uuid}/index.md AND original.* exist on disk
-8. Commit: "ingest: {source title}"
+7. **Pre-commit check:** verify artifacts/{uuid}/index.md AND original.tar.gz exist on disk
+8. Commit: "ingest: {source title}" (content + artifacts repos)
 ```
 
 ## Rules
@@ -80,14 +81,26 @@ Artifacts preserve the original source material as faithfully as possible.
 
 ```
 artifacts/{uuid}/
-├── original.*     ← raw download (HTML, PDF, etc.) — always saved
-├── index.md       ← markdown conversion of the original (full content, not a summary)
-└── assets/        ← images, diagrams, attachments (if any)
+├── index.md           ← markdown conversion (full content, not a summary)
+└── original.tar.gz    ← archived wget download (HTML + all assets)
 ```
 
-- `original.*` is the raw file as downloaded — never processed by LLM
-- `index.md` is a faithful markdown conversion — all text, headings, lists, code blocks preserved verbatim. NO summarization, NO extraction, NO LLM rewriting.
-- `assets/` contains any embedded images or files referenced by the source
+### Download procedure
+
+```bash
+# All in one chained command (cwd resets between Bash calls!)
+cd artifacts/{uuid} \
+  && nix-shell -p wget --run "wget -p -k -nH --no-parent '{url}' -P raw" \
+  && nix-shell -p pandoc --run "pandoc raw/.../index.html -f html -t gfm --wrap=none -o index.md" \
+  && tar czf original.tar.gz raw \
+  && rm -rf raw
+```
+
+### Rules
+
+- `original.tar.gz` is the full wget download — never processed by LLM
+- `index.md` is a faithful pandoc conversion — all text, headings, lists, code blocks preserved verbatim. NO summarization, NO extraction, NO LLM rewriting.
 - Never published — originals may be copyrighted
 - Only LLM-generated summaries (in bib/) are public
-- When using WebFetch, instruct it to return verbatim markdown, not a summary. Prefer `curl` + local conversion when possible.
+- NixOS: use `nix-shell -p wget` and `nix-shell -p pandoc`
+- Never create temp dirs outside the artifact directory
