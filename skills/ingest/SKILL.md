@@ -52,7 +52,7 @@ Version: **0.1.0**
 ---
 bib_id: "{uuid}"
 bib_type: repo | article | book | paper | podcast | video | voice
-bib_title: "Source Title"
+bib_title: "Original <title> from the source page"
 bib_author: "Author Name"
 bib_url: https://example.com/source
 bib_added: {ISO timestamp}
