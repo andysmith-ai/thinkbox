@@ -22,18 +22,19 @@ Version: **0.1.0**
 1. Generate UUID v7
 2. Download the source — ORIGINAL, not a summary
    a. wget -p -k into artifacts/{uuid}/raw/
-   b. pandoc the HTML to artifacts/{uuid}/index.md
-   c. tar.gz raw/ into artifacts/{uuid}/original.tar.gz, delete raw/
+   b. pandoc the HTML to artifacts/{uuid}/original.txt (plain text, no HTML)
+   c. extract hyperlinks to artifacts/{uuid}/links.csv
+   d. tar.gz raw/ into artifacts/{uuid}/original.tar.gz, delete raw/
    Principle: better to save too much than lose something.
    All commands in a single chained shell call (cwd resets between calls).
-3. Read the full index.md, extract key ideas
+3. Read the full original.txt, extract key ideas
 4. Present takeaways to user, propose:
    - bib/{uuid}.md
    - wiki page(s)
    - MOC updates
 5. User approves / adjusts
 6. Create files, update index/MOCs
-7. **Pre-commit check:** verify artifacts/{uuid}/index.md AND original.tar.gz exist on disk
+7. **Pre-commit check:** verify artifacts/{uuid}/original.txt AND original.tar.gz exist on disk
 8. Commit: "ingest: {source title}" (content + artifacts repos)
 ```
 
@@ -81,7 +82,8 @@ Artifacts preserve the original source material as faithfully as possible.
 
 ```
 artifacts/{uuid}/
-├── index.md           ← markdown conversion (full content, not a summary)
+├── original.txt       ← pandoc plain text conversion (full content, no HTML)
+├── links.csv          ← all hyperlinks from the source ("text","url")
 └── original.tar.gz    ← archived wget download (HTML + all assets)
 ```
 
@@ -91,7 +93,9 @@ artifacts/{uuid}/
 # All in one chained command (cwd resets between Bash calls!)
 cd artifacts/{uuid} \
   && nix-shell -p wget --run "wget -p -k -nH --no-parent '{url}' -P raw" \
-  && nix-shell -p pandoc --run "pandoc raw/.../index.html -f html -t gfm --wrap=none -o index.md" \
+  && nix-shell -p pandoc --run "pandoc raw/.../index.html -f html -t plain --wrap=none -o original.txt" \
+  && grep -oE '<a [^>]*href="[^"]*"[^>]*>[^<]*</a>' raw/.../index.html \
+     | sed 's/<a [^>]*href="\([^"]*\)"[^>]*>\([^<]*\)<\/a>/"\2","\1"/' > links.csv \
   && tar czf original.tar.gz raw \
   && rm -rf raw
 ```
@@ -99,7 +103,8 @@ cd artifacts/{uuid} \
 ### Rules
 
 - `original.tar.gz` is the full wget download — never processed by LLM
-- `index.md` is a faithful pandoc conversion — all text, headings, lists, code blocks preserved verbatim. NO summarization, NO extraction, NO LLM rewriting.
+- `original.txt` is a faithful pandoc plain text conversion — all text preserved verbatim, zero HTML tags. NO summarization, NO extraction, NO LLM rewriting.
+- `links.csv` contains all hyperlinks extracted from the HTML source, format: "text","url"
 - Never published — originals may be copyrighted
 - Only LLM-generated summaries (in bib/) are public
 - NixOS: use `nix-shell -p wget` and `nix-shell -p pandoc`
