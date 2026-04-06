@@ -63,10 +63,14 @@ what connects to existing knowledge.
 
 ## Wiki pages created during ingest
 
-Typically a **source summary** page (wiki_type: source). May also create or update:
-- Entity pages for people/tools/projects mentioned
-- Concept pages if the source introduces new ideas
-- MOCs if the topic area needs one
+Every ingest MUST produce:
+
+1. **One source summary page** (wiki_type: source) — overview of the article, key contributions, connections to existing knowledge.
+2. **One concept page per distinct idea** introduced or developed in the source. Ask: "would this concept make sense as a standalone page that other sources could also reference?" Typical: 3–7 concept pages per substantial article.
+3. **MOC updates** linking the new pages.
+4. Optionally: entity pages for people/tools/projects, comparisons, syntheses.
+
+Concept pages cite the bib entry as their authority. Xettel cards appear only as cross-references ("the user independently noted X") or contradictions ("the user claims X, but the source argues Y"). Wiki must be able to challenge the user's thinking, not just confirm it.
 
 All wiki pages follow the format in `skills/wiki/SKILL.md`.
 
