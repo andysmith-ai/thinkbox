@@ -25,13 +25,17 @@ project-root/
 │   ├── x/                   ← xettel: user's atomic thoughts
 │   ├── blog/                ← user's long-form articles
 │   └── bib/                 ← bibliography / source registry
+├── sessions/                ← Socratic dialogue transcripts (private, not in git)
+│   └── {uuid7}/index.md
 └── thinkbox/                ← platform (shareable)
     ├── CLAUDE.md            ← platform conventions for the LLM
     ├── ARCHITECTURE.md      ← this file
     └── skills/
         ├── xettel/SKILL.md
         ├── ingest/SKILL.md
-        └── wiki/SKILL.md
+        ├── wiki/SKILL.md
+        ├── publish/SKILL.md
+        └── socrates/SKILL.md
 
 Artifacts (will move to S3 later, local for now):
 artifacts/{uuid7}/
@@ -373,6 +377,32 @@ Agent: commits — "wiki: create CA and GitOps synthesis"
 - Use both Qdrant semantic search and structured MOC navigation — semantic search finds unexpected connections, MOCs ensure known territory is covered.
 - Offer to save valuable answers as wiki pages.
 - During Q&A, if a thought worth capturing emerges, suggest `/xettel`.
+
+### /socrates — knowledge integration through dialogue
+
+**Trigger:** `/socrates` or natural entry ("let's discuss", "let's think about this")
+
+**Flow:**
+```
+User provides context (or context is already in chat)
+Agent creates sessions/{uuid7}/index.md
+Agent searches knowledge base for related content
+Dialogue proceeds with escalation (simple → complex questions)
+Agent records transcript continuously
+Cards emerge during dialogue — proposed with provenance checklist
+Session ends when it ends (user stops, context fills, day is over)
+Cards go through standard /xettel flow
+Bridges proposed after full cluster is published
+```
+
+**Rules:**
+- Agent is an opponent, not a mirror — challenges with knowledge base and general knowledge
+- Transcript records user's words close to verbatim, agent's words compressed
+- Every card proposal includes: user's original words, card text, checklist (provenance, self-containment, scientific style, neighbors checked, bridges)
+- Don't be stingy with cards — better to save too many than lose one
+- Sessions stored in `sessions/` (private, not published)
+
+See `skills/socrates/SKILL.md` for full specification.
 
 ### /lint — health check
 
