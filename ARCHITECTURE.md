@@ -33,6 +33,7 @@ project-root/
     └── skills/
         ├── xettel/SKILL.md
         ├── ingest/SKILL.md
+        ├── ingest-repo/SKILL.md
         ├── wiki/SKILL.md
         ├── publish/SKILL.md
         └── socrates/SKILL.md
@@ -231,7 +232,9 @@ All operations are invoked as explicit skills. The agent also recognizes natural
 
 ### /ingest — process an external source
 
-**Trigger:** `/ingest <url>` or `/ingest <path to local file>`
+**Trigger:** `/ingest <url>` or `/ingest <path to local file>` (articles, papers, web pages)
+
+For GitHub repositories, use `/ingest-repo` instead.
 
 **Flow:**
 ```
@@ -265,6 +268,22 @@ Agent: commits — "ingest: Managing Devices with GitOps"
 - Creates bib entry only for citable sources.
 - Never creates xettel cards — those are the user's thoughts.
 - Checks existing wiki pages for contradictions/connections with the new source.
+
+### /ingest-repo — deep analysis of a GitHub repository
+
+**Trigger:** `/ingest-repo <github-url>` — URL matching `https://github.com/{owner}/{repo}`
+
+Clones the repo, navigates code interactively across two axes (technical architecture + business context), creates bib entry and wiki pages. Produces the same three artifact files as `/ingest` (original.txt, links.csv, original.tar.gz) but uses a different acquisition pipeline: shallow clone instead of wget, file tree + key source files instead of pandoc HTML conversion.
+
+**Analysis axes:**
+- **Technical:** architecture, patterns, core algorithms, extensibility
+- **Business:** problem, audience, use cases, positioning, maturity
+
+**Exploration funnel:** ORIENT (tree + README) → IDENTIFY (manifests + config) → MAP (entry points + interfaces) → DIVE (10-30 key files)
+
+**Wiki output:** 1 source summary + 1-4 concept pages + 0-1 entity page + MOC updates.
+
+See `skills/ingest-repo/SKILL.md` for full specification.
 
 ### /xettel — create an atomic thought
 
