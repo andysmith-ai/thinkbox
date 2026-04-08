@@ -55,7 +55,13 @@ Slug-based: `content/wiki/{slug}.md`
 - **All internal links use relative markdown links with `.md` extensions.** No wikilinks. See `thinkbox/CLAUDE.md` for the linking rule and format table.
 - Synthesize, don't copy. Link to xettel cards — don't reproduce their text.
 - Every claim should be traceable to a source.
-- Use Qdrant semantic search to find related pages, xettel cards, and bib entries when creating or updating a page. This surfaces connections that MOC navigation might miss.
+- Use Qdrant semantic search with `-t` filter to find related content when creating or updating a page. This surfaces connections that MOC navigation might miss.
+  ```
+  thinkbox/scripts/search.sh '<topic>' -t bib    # sources to cite
+  thinkbox/scripts/search.sh '<topic>' -t x      # user's thoughts to reference
+  thinkbox/scripts/search.sh '<topic>' -t wiki   # existing pages to link or update
+  thinkbox/scripts/search.sh '<topic>'            # all types — for broad discovery
+  ```
 - **Concept pages derive authority from bib entries (original sources), not xettel cards.** Xettel cards are the user's thoughts — cite them as "see also" or note agreement/disagreement, but the wiki's claims must stand on published sources. This ensures wiki can surface contradictions when the user's thinking diverges from the literature.
 
 ## wiki_sources

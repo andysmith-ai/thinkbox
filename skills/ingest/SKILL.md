@@ -43,7 +43,12 @@ Version: **0.1.0**
 - Always read the ORIGINAL artifact, not just metadata. Extract knowledge from the full source.
 - Create a bib entry only for citable sources. Voice memos, screenshots, raw dumps — artifacts without bib records.
 - Never create xettel cards during ingest. Those are the user's thoughts, not the agent's.
-- Check existing wiki pages for contradictions and connections with the new source. Use Qdrant semantic search to find related content beyond what MOCs link to.
+- Check existing wiki pages for contradictions and connections with the new source. Use Qdrant semantic search with `-t` filter to target specific content types:
+  ```
+  thinkbox/scripts/search.sh '<key concept>' -t wiki   # existing wiki coverage
+  thinkbox/scripts/search.sh '<key concept>' -t x      # user's existing thoughts
+  thinkbox/scripts/search.sh '<key concept>' -t bib    # related sources already ingested
+  ```
 - If the source contradicts an existing xettel card, the wiki page must note the disagreement with links to both.
 
 ## Bib entry format

@@ -122,8 +122,12 @@ just enough to understand the direction of the dialogue}*
 3. Agent:
    a. Generates UUID v7
    b. Creates sessions/{uuid}/index.md with header
-   c. Searches knowledge base for related content
-      (existing xettel cards, wiki pages, bib entries)
+   c. Searches knowledge base for related content using `-t` filter:
+      ```
+      thinkbox/scripts/search.sh '<topic>' -t x      # user's existing position
+      thinkbox/scripts/search.sh '<topic>' -t wiki   # structured knowledge
+      thinkbox/scripts/search.sh '<topic>' -t bib    # source material
+      ```
    d. Reads related content to understand user's existing position
 4. Agent asks the first simple question
 5. Dialogue proceeds with escalation
