@@ -346,6 +346,7 @@ Agent: commits — "blog: Why GitOps Matters"
 User: /query what connects continuous assembly and fleet management?
       (or just: "what connects continuous assembly and fleet management?")
 
+Agent: searches Qdrant for semantically related content
 Agent: reads content/index.md → finds relevant MOCs
 Agent: reads wiki pages, xettel cards, bib entries
 Agent:
@@ -369,6 +370,7 @@ Agent: commits — "wiki: create CA and GitOps synthesis"
 
 **Rules:**
 - Always cite sources with links.
+- Use both Qdrant semantic search and structured MOC navigation — semantic search finds unexpected connections, MOCs ensure known territory is covered.
 - Offer to save valuable answers as wiki pages.
 - During Q&A, if a thought worth capturing emerges, suggest `/xettel`.
 
@@ -505,9 +507,15 @@ One collection. Each point includes metadata:
 
 ### Agent search interface
 
-**Current:** CLI tool via Bash — `thinkbox-search "query"` returns ranked results with paths and snippets. The agent reads full files via Read tool as needed.
+`thinkbox/scripts/search.sh` — CLI wrapper around `search.py`. Embeds the query with the same model (Qwen3-Embedding-8B via OpenRouter) and searches Qdrant. Returns ranked results with path, title, score, and full file content. Supports `-t` filter (wiki/x/bib/blog) and `-n` limit.
 
-**Future:** MCP server for native tool access.
+### Indexing pipeline (implementation)
+
+`thinkbox-embed` (installed via `pip install git+...thinkbox.git`) — runs on push to main (GitHub Action) or locally:
+1. Walks `wiki/`, `x/`, `bib/`, `blog/` — collects all `.md` files
+2. Computes SHA-256 hash per file, compares with Qdrant state
+3. Embeds new/changed files via OpenRouter, upserts to Qdrant
+4. Deletes points for removed files
 
 ### Search + navigation
 
@@ -517,7 +525,7 @@ Qdrant search complements (does not replace) the index.md → MOC → page navig
 
 ## Tooling (current)
 
-Claude Code direct — Write/Edit/Grep tools on content/ and artifacts/ files. No MCP for content operations. The architecture doesn't depend on tooling choice; files are files.
+Claude Code direct — Write/Edit/Grep tools on content/ and artifacts/ files. Qdrant semantic search via `thinkbox-search`. The architecture doesn't depend on tooling choice; files are files.
 
 For web sources, the agent uses WebFetch to download articles. For local files, the user points to the path. Artifacts are stored locally in `artifacts/` (will migrate to S3).
 

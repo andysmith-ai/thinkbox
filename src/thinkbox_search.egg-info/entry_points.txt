@@ -1,0 +1,3 @@
+[console_scripts]
+thinkbox-embed = thinkbox_search.embed:main
+thinkbox-search = thinkbox_search.search:main

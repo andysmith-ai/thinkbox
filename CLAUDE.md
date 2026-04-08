@@ -63,6 +63,18 @@ Paths are relative to the source file's location within `content/`.
 
 Xettel card bodies never contain links — all linking is via frontmatter fields (`xettel_reply_to`, `xettel_ref`, `xettel_bib`).
 
+## Semantic search
+
+All content is indexed in Qdrant (collection: `content`, 4096-dim Qwen3-Embedding-8B vectors). Each point carries payload: `path`, `type` (wiki/x/bib/blog), `content_hash`, plus all frontmatter fields.
+
+**Search command:** `thinkbox/scripts/search.sh '<query>' [-n limit] [-t wiki|x|bib|blog]`
+
+Use semantic search to:
+- Find related content when creating/updating wiki pages
+- Discover connections during `/ingest` (existing pages that relate to new source)
+- Answer `/query` questions alongside structured MOC navigation
+- Detect near-duplicates and contradictions during `/lint`
+
 ## Character counting for xettel
 
 1. Count all visible characters in the body
