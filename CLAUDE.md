@@ -63,17 +63,31 @@ Paths are relative to the source file's location within `content/`.
 
 Xettel card bodies never contain links — all linking is via frontmatter fields (`xettel_reply_to`, `xettel_ref`, `xettel_bib`).
 
-## Semantic search
+## Search
 
 All content is indexed in Qdrant (collection: `content`, 4096-dim Qwen3-Embedding-8B vectors). Each point carries payload: `path`, `type` (wiki/x/bib/blog), `content_hash`, plus all frontmatter fields.
 
-**Search command:** `thinkbox/scripts/search.sh '<query>' [-n limit] [-t wiki|x|bib|blog]`
+**In the main session:** use the search skill (`thinkbox/skills/search/SKILL.md`). It launches a sub-agent that combines semantic (Qdrant), full-text (grep), and MOC navigation, returning a compact summary. This protects the main session's context window.
 
-Use semantic search to:
-- Find related content when creating/updating wiki pages
-- Discover connections during `/ingest` (existing pages that relate to new source)
-- Answer `/query` questions alongside structured MOC navigation
-- Detect near-duplicates and contradictions during `/lint`
+**Inside a sub-agent:** use `thinkbox/scripts/search.sh` directly, since you're already in an isolated context.
+
+**Search script:** `thinkbox/scripts/search.sh '<query>' [-n limit] [-t wiki|x|bib|blog]`
+
+## Sub-agent skills
+
+Some skills run their work in a Task tool sub-agent to protect the main session's context window. Each skill's SKILL.md contains the full sub-agent prompt inlined — no extra file reads needed.
+
+| Skill | Purpose | Model |
+|---|---|---|
+| `search` | Combined search (semantic + full-text + MOC) — returns compact summary | Sonnet |
+| `ingest` | Full ingestion flow (download, artifact, bib, wiki, MOC, commit) | Opus |
+| `ingest-repo` | Full repo analysis and ingestion | Opus |
+
+**Key rules:**
+- Sub-agents generate their own UUIDs via `thinkbox/scripts/uuid7.sh`
+- Sub-agents run search directly via `search.sh` (they have their own context window)
+- Sub-agents cannot spawn other sub-agents (no nesting)
+- All heavy work stays in the sub-agent's context — only compact summaries return to the main session
 
 ## Character counting for xettel
 

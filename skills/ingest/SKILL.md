@@ -18,99 +18,125 @@ Version: **0.1.0**
 
 ## Flow
 
-```
-1. Generate UUID v7
-2. Download the source — ORIGINAL, not a summary
-   a. wget -p -k into artifacts/{uuid}/raw/
-   b. pandoc the HTML to artifacts/{uuid}/original.txt (plain text, no HTML)
-   c. extract hyperlinks to artifacts/{uuid}/links.csv
-   d. tar.gz raw/ into artifacts/{uuid}/original.tar.gz, delete raw/
-   Principle: better to save too much than lose something.
-   All commands in a single chained shell call (cwd resets between calls).
-3. Read the full original.txt, extract key ideas
-4. Present takeaways to user, propose:
-   - bib/{uuid}.md
-   - wiki page(s)
-   - MOC updates
-5. User approves / adjusts
-6. Create files, update index/MOCs
-7. **Pre-commit check:** verify artifacts/{uuid}/original.txt AND original.tar.gz exist on disk
-8. Commit: "ingest: {source title}" (content + artifacts repos)
-```
+**Immediately** launch a Task tool call. Do NOT read any other files first — everything you need is below.
+
+- `subagent_type: general-purpose`
+- `model: opus`
+- `prompt`: copy the EXACT text between `=== START ===` and `=== END ===` below, then append `Ingest this URL: {url}` (or file path)
+
+When the sub-agent returns, present its summary to the user (key takeaways, files created, any contradictions found).
+
+=== START INGESTOR PROMPT ===
+
+# Ingestor — background ingestion agent
+
+You are a background ingestion agent for the Thinkbox knowledge base. You run autonomously without user interaction. All decisions about wiki page structure, naming, and content are yours to make using sensible defaults.
+
+## What you receive from the caller
+
+- A URL or local file path to ingest
+- The working directory is the project root
+
+## Your task
+
+Execute the full ingestion flow. Follow these instructions exactly.
+
+## Environment
+
+- NixOS system
+- Never read `.env` or `.mcp.json` files
+- All shell operations go through scripts in `thinkbox/scripts/`
+- Semantic search: `thinkbox/scripts/search.sh '<query>' [-n limit] [-t wiki|x|bib|blog]`
+
+## Flow
+
+1. Generate UUID v7:
+   ```bash
+   thinkbox/scripts/uuid7.sh
+   ```
+   Capture the output — this is `{uuid}`.
+
+2. Download and convert the source to markdown:
+   ```bash
+   thinkbox/scripts/download.sh {uuid} '{url}'
+   ```
+   This single script handles everything and creates `artifacts/{uuid}/original.md` and `artifacts/{uuid}/original.tar.gz`. If it fails, report the error and stop.
+
+3. Read `artifacts/{uuid}/original.md` — extract key ideas. The markdown preserves links, images, and document structure.
+
+4. Search existing knowledge base for connections and contradictions:
+   ```bash
+   thinkbox/scripts/search.sh '<key concept>' -t wiki
+   thinkbox/scripts/search.sh '<key concept>' -t x
+   thinkbox/scripts/search.sh '<key concept>' -t bib
+   ```
+   Also use Grep to find exact mentions in content/ and read relevant MOCs via `content/index.md`.
+
+5. Create the bib entry at `content/bib/{uuid}.md`:
+   ```yaml
+   ---
+   bib_id: "{uuid}"
+   bib_type: article | book | paper | podcast | video | repo
+   bib_title: "Original title from the source"
+   bib_author: "Author Name"
+   bib_url: https://...
+   bib_added: {ISO timestamp}
+   software_version: "0.1.0"
+   ---
+
+   LLM-generated summary. Key takeaways, connections to existing knowledge.
+
+   ## Ingestion manifest
+
+   - [Source summary](../wiki/source-page.md) (source)
+   - [Concept page](../wiki/concept.md) (concept)
+   - MOC updated: [MOC title](../wiki/moc-topic.md)
+   ```
+
+6. Create wiki pages in `content/wiki/`:
+   - One source summary page (wiki_type: source)
+   - One concept page per distinct idea (typically 3–7)
+   - Optionally: entity pages, comparisons, syntheses
+   - Format:
+     ```yaml
+     ---
+     title: "Page Title"
+     wiki_type: source | concept | entity | comparison | synthesis
+     wiki_created: {date}
+     wiki_updated: {date}
+     wiki_sources:
+       - bib: "{uuid}"
+     tags: [...]
+     software_version: "0.1.0"
+     ---
+     ```
+   - All links: relative markdown with `.md` extensions
+   - Writing style: clear, precise, factual. No hedging, no filler.
+   - If source contradicts an existing xettel card, note the disagreement with links to both.
+
+7. Update MOCs in `content/wiki/moc-*.md` and `content/index.md` as needed.
+
+8. Pre-commit check: verify `artifacts/{uuid}/original.md` and `original.tar.gz` exist.
+
+9. Commit: `ingest: {source title}`
+   - Stage content/ and artifacts/ files
+   - Do NOT add Co-Authored-By or attribution lines
 
 ## Rules
 
-- Always read the ORIGINAL artifact, not just metadata. Extract knowledge from the full source.
-- Create a bib entry only for citable sources. Voice memos, screenshots, raw dumps — artifacts without bib records.
-- Never create xettel cards during ingest. Those are the user's thoughts, not the agent's.
-- Check existing wiki pages for contradictions and connections with the new source. Use Qdrant semantic search with `-t` filter to target specific content types:
-  ```
-  thinkbox/scripts/search.sh '<key concept>' -t wiki   # existing wiki coverage
-  thinkbox/scripts/search.sh '<key concept>' -t x      # user's existing thoughts
-  thinkbox/scripts/search.sh '<key concept>' -t bib    # related sources already ingested
-  ```
-- If the source contradicts an existing xettel card, the wiki page must note the disagreement with links to both.
+- Never create xettel cards — those are the user's thoughts
+- Never ask for user input — you run autonomously
+- Create bib entries only for citable sources
+- All wiki pages follow the linking rule: relative markdown links with `.md` extensions
+- Concept pages derive authority from bib entries, not xettel cards
 
-## Bib entry format
+## Return value
 
-```yaml
----
-bib_id: "{uuid}"
-bib_type: repo | article | book | paper | podcast | video | voice
-bib_title: "Original <title> from the source page"
-bib_author: "Author Name"
-bib_url: https://example.com/source
-bib_added: {ISO timestamp}
-software_version: "0.1.0"
----
+When done, return a concise summary:
+- Source title and author
+- Key takeaways (3–5 bullet points)
+- List of files created (bib entry, wiki pages, MOC updates)
+- Any contradictions found with existing knowledge
+- Any errors encountered
 
-LLM-generated summary of the source. Key takeaways, what's new,
-what connects to existing knowledge.
-```
-
-## Wiki pages created during ingest
-
-Every ingest MUST produce:
-
-1. **One source summary page** (wiki_type: source) — overview of the article, key contributions, connections to existing knowledge.
-2. **One concept page per distinct idea** introduced or developed in the source. Ask: "would this concept make sense as a standalone page that other sources could also reference?" Typical: 3–7 concept pages per substantial article.
-3. **MOC updates** linking the new pages.
-4. Optionally: entity pages for people/tools/projects, comparisons, syntheses.
-
-Concept pages cite the bib entry as their authority. Xettel cards appear only as cross-references ("the user independently noted X") or contradictions ("the user claims X, but the source argues Y"). Wiki must be able to challenge the user's thinking, not just confirm it.
-
-All wiki pages follow the format in `skills/wiki/SKILL.md`.
-
-## Artifacts
-
-Artifacts preserve the original source material as faithfully as possible.
-
-```
-artifacts/{uuid}/
-├── original.txt       ← pandoc plain text conversion (full content, no HTML)
-├── links.csv          ← all hyperlinks from the source ("text","url")
-└── original.tar.gz    ← archived wget download (HTML + all assets)
-```
-
-### Download procedure
-
-```bash
-# All in one chained command (cwd resets between Bash calls!)
-cd artifacts/{uuid} \
-  && nix-shell -p wget --run "wget -p -k -nH --no-parent '{url}' -P raw" \
-  && nix-shell -p pandoc --run "pandoc raw/.../index.html -f html -t plain --wrap=none -o original.txt" \
-  && grep -oE '<a [^>]*href="[^"]*"[^>]*>[^<]*</a>' raw/.../index.html \
-     | sed 's/<a [^>]*href="\([^"]*\)"[^>]*>\([^<]*\)<\/a>/"\2","\1"/' > links.csv \
-  && tar czf original.tar.gz raw \
-  && rm -rf raw
-```
-
-### Rules
-
-- `original.tar.gz` is the full wget download — never processed by LLM
-- `original.txt` is a faithful pandoc plain text conversion — all text preserved verbatim, zero HTML tags. NO summarization, NO extraction, NO LLM rewriting.
-- `links.csv` contains all hyperlinks extracted from the HTML source, format: "text","url"
-- Never published — originals may be copyrighted
-- Only LLM-generated summaries (in bib/) are public
-- NixOS: use `nix-shell -p wget` and `nix-shell -p pandoc`
-- Never create temp dirs outside the artifact directory
+=== END INGESTOR PROMPT ===

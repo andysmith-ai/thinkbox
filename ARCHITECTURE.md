@@ -31,9 +31,10 @@ project-root/
     ├── CLAUDE.md            ← platform conventions for the LLM
     ├── ARCHITECTURE.md      ← this file
     └── skills/
+        ├── search/SKILL.md      ← combined search (runs in sub-agent)
+        ├── ingest/SKILL.md      ← article ingestion (runs in sub-agent)
+        ├── ingest-repo/SKILL.md ← repo ingestion (runs in sub-agent)
         ├── xettel/SKILL.md
-        ├── ingest/SKILL.md
-        ├── ingest-repo/SKILL.md
         ├── wiki/SKILL.md
         ├── publish/SKILL.md
         └── socrates/SKILL.md
@@ -273,7 +274,7 @@ Agent: commits — "ingest: Managing Devices with GitOps"
 
 **Trigger:** `/ingest-repo <github-url>` — URL matching `https://github.com/{owner}/{repo}`
 
-Clones the repo, navigates code interactively across two axes (technical architecture + business context), creates bib entry and wiki pages. Produces the same three artifact files as `/ingest` (original.txt, links.csv, original.tar.gz) but uses a different acquisition pipeline: shallow clone instead of wget, file tree + key source files instead of pandoc HTML conversion.
+Clones the repo, navigates code interactively across two axes (technical architecture + business context), creates bib entry and wiki pages. Uses a different acquisition pipeline than `/ingest`: shallow clone, file tree + key source files.
 
 **Analysis axes:**
 - **Technical:** architecture, patterns, core algorithms, extensibility
