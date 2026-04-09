@@ -95,6 +95,15 @@ Every Socrates session is recorded in a transcript file.
 
 Topic: {brief topic description}
 
+## Context
+
+{The material that triggered this session. Verbatim or lightly edited.
+Could be: an ingested source summary, a pasted article/post,
+raw ideas the user typed, a question that came up.
+If the context is a bib entry or wiki page, include a relative link
+and paste the relevant excerpt. If it's raw text the user provided,
+paste it as-is.}
+
 ## Dialogue
 
 **User:** {user's words, close to verbatim — fix spelling, punctuation,
@@ -110,9 +119,10 @@ just enough to understand the direction of the dialogue}*
 
 ### Rules
 
-1. **User's words are sacred.** Record close to verbatim. Fix spelling, punctuation, remove filler words ("uh", "like", "well"). Do NOT rephrase, summarize, or interpret. The user owns the transcript.
-2. **Agent's words are compressed.** The agent's contributions are reduced to a brief italic summary — just enough to follow the flow. The transcript is about the user's thinking, not the agent's questions.
-3. **Update after every exchange.** Do not wait until the end of the session. Write to the transcript continuously so nothing is lost if the session ends unexpectedly or context is compressed.
+1. **Context is written first.** Before the dialogue begins, the triggering material goes into the ## Context section. This ensures the transcript is self-contained — anyone reading it later (including a future session) can understand what prompted the conversation without needing the original chat.
+2. **User's words are sacred.** Record close to verbatim. Fix spelling, punctuation, remove filler words ("uh", "like", "well"). Do NOT rephrase, summarize, or interpret. The user owns the transcript.
+3. **Agent's words are compressed.** The agent's contributions are reduced to a brief italic summary — just enough to follow the flow. The transcript is about the user's thinking, not the agent's questions.
+4. **Update after every exchange.** Do not wait until the end of the session. Write to the transcript continuously so nothing is lost if the session ends unexpectedly or context is compressed.
 
 ## Flow
 
@@ -122,13 +132,18 @@ just enough to understand the direction of the dialogue}*
 3. Agent:
    a. Generates UUID v7
    b. Creates sessions/{uuid}/index.md with header
-   c. Searches knowledge base for related content using `-t` filter:
+   c. Writes the ## Context section — captures whatever triggered the session:
+      - If triggered by an ingested source: link to bib entry + relevant excerpt
+      - If triggered by a pasted article/post: paste the text as-is
+      - If triggered by raw ideas: paste the user's words as-is
+      - If context is already in the chat, extract and record it
+   d. Searches knowledge base for related content using `-t` filter:
       ```
       thinkbox/scripts/search.sh '<topic>' -t x      # user's existing position
       thinkbox/scripts/search.sh '<topic>' -t wiki   # structured knowledge
       thinkbox/scripts/search.sh '<topic>' -t bib    # source material
       ```
-   d. Reads related content to understand user's existing position
+   e. Reads related content to understand user's existing position
 4. Agent asks the first simple question
 5. Dialogue proceeds with escalation
    - Agent records transcript continuously
