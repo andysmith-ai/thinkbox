@@ -90,22 +90,16 @@ Every Socrates session is recorded in a transcript file.
 
 ### Format
 
+A new session starts with just a header:
+
 ```markdown
 # Socratic session — {date}
 
-Topic: {brief topic description}
+```
 
-## Context
+The body is a sequence of `**User:**` / `**LLM:**` exchanges:
 
-{The material that triggered this session. Verbatim or lightly edited.
-Could be: an ingested source summary, a pasted article/post,
-raw ideas the user typed, a question that came up.
-If the context is a bib entry or wiki page, include a relative link
-and paste the relevant excerpt. If it's raw text the user provided,
-paste it as-is.}
-
-## Dialogue
-
+```markdown
 **User:** {user's words, close to verbatim — fix spelling, punctuation,
 remove filler words, but preserve meaning and phrasing exactly}
 
@@ -117,85 +111,105 @@ just enough to understand the direction of the dialogue}*
 ...
 ```
 
+Optional H2 headers are inserted into the transcript as the session
+develops — never pre-filled, only added when there's something to
+record:
+
+- `## Topic: {label}` — when a topic becomes clear, or shifts
+- `## Context: {source label}` — when source material is introduced
+  (followed by the material, verbatim or lightly edited)
+- `## Ingested: {title}` — when something is ingested mid-session
+  (followed by the ingestor summary and links to bib/wiki)
+- `## Resumed — {date}` — when the session is resumed after a break
+
 ### Rules
 
-1. **Context is written first.** Before the dialogue begins, the triggering material goes into the ## Context section. This ensures the transcript is self-contained — anyone reading it later (including a future session) can understand what prompted the conversation without needing the original chat.
+1. **Context is written when it appears.** A session may start with no context at all — the user may be thinking out loud, unsure of the topic. When source material is introduced mid-session (pasted text, ingested article, quoted post), write a `## Context:` section before continuing the dialogue. Self-contained transcripts matter for resumption, but only record context that actually exists — never pre-fill.
 2. **User's words are sacred.** Record close to verbatim. Fix spelling, punctuation, remove filler words ("uh", "like", "well"). Do NOT rephrase, summarize, or interpret. The user owns the transcript.
 3. **Agent's words are compressed.** The agent's contributions are reduced to a brief italic summary — just enough to follow the flow. The transcript is about the user's thinking, not the agent's questions.
 4. **Update after every exchange.** Do not wait until the end of the session. Write to the transcript continuously so nothing is lost if the session ends unexpectedly or context is compressed.
 
 ## Flow
 
-```
-1. User says "/socrates" with either:
-   a. A NEW session: a topic, a few words, a question, or a URL
-   b. A RESUMED session: a session ID (UUID)
+### Entry point
 
---- NEW SESSION ---
+User says `/socrates` with one of:
 
-2. Agent:
-   a. Generates UUID v7 for the session
-   b. Creates sessions/{uuid}/index.md with header
-   c. Writes the ## Context section:
-      - User's starting words/topic as-is
-      - If a URL was provided: note it (ingestion happens in step 2e, not here)
-      - If referencing existing knowledge: link to the relevant bib/wiki/xettel
-   d. Search the knowledge base using the search skill (`thinkbox/skills/search/SKILL.md`).
-      Query: the topic; intent: "find the user's existing position, structured
-      knowledge, and source material on <topic>"
-      This is a blocking call — wait for results before starting the dialogue.
-      No raw search output enters the main session, only the compact summary.
-   e. If the user provided a URL: run the ingest skill (`thinkbox/skills/ingest/SKILL.md`).
-      This blocks but protects context.
-   f. Use search and ingestion results to understand the user's existing
-      position and prepare counter-arguments.
-3. Agent asks the first simple question — based on what the sub-agents found.
+- A session ID (UUID) → RESUME an existing session
+- An initial topic, question, URL, or nothing → NEW session
+  (the topic may not be known yet — that's fine)
 
---- RESUMED SESSION ---
+### New session
 
-2. Agent:
-   a. Reads sessions/{uuid}/index.md — the full transcript
-   b. Extracts the topic, context, and all ## Ingested sections
-   c. Reads all bib entries and wiki pages referenced in the transcript
-      (compact: summaries and introductions only — protect context window)
-   d. Search for NEW content using the search skill (`thinkbox/skills/search/SKILL.md`).
-      Query: the topic; intent: "find content added or updated after
-      {last_session_date} related to <topic>"
-   e. Appends a continuation marker to the transcript:
-      ```markdown
-      ## Resumed — {date}
-      ```
-3. Agent picks up where the dialogue left off. Summarize what was discussed
-   last time in 1–2 sentences, then continue — either deepening an open
-   thread, introducing new material found in step 2d, or asking the user
-   what direction they want to take.
+1. Generate UUID v7: `thinkbox/scripts/uuid7.sh`
+2. Create `sessions/{uuid}/index.md` with just a header:
+   ```markdown
+   # Socratic session — {date}
 
---- BOTH ---
+   ```
+3. Ready to transcribe. **No pre-emptive search. No pre-emptive ingest.**
+   The topic, context, and direction all emerge from what the user
+   writes next.
+4. If the user provided initial words, record them as the first
+   `**User:**` entry and respond.
+5. If the user provided only `/socrates`, acknowledge briefly
+   ("Session started — what's on your mind?") and wait.
+6. If the user provided a URL, run the ingest skill
+   (see "Mid-dialogue ingestion"). The dialogue starts once the
+   sub-agent returns its summary.
 
-4. Dialogue proceeds with escalation
-   - Agent records transcript continuously
-   - When the agent needs to search the knowledge base during dialogue,
-     use the search skill (`thinkbox/skills/search/SKILL.md`) — never run search inline
-5. User may send URLs at any point during the dialogue.
-   Agent runs the ingest skill (`thinkbox/skills/ingest/SKILL.md`). See "Mid-dialogue ingestion".
-   The dialogue pauses during ingestion but context is protected.
-6. When the ingestion sub-agent returns:
-   - Its summary enters the main session (compact: title, key takeaways, files created)
-   - Agent appends an ## Ingested section to the transcript
-   - Agent incorporates new knowledge into the dialogue — can reference,
-     challenge, and connect the ingested material to the user's positions
-7. Cards may emerge at any point during the dialogue:
-   - When the user articulates a transferable insight, agent flags it
-   - Some cards can be published immediately
-   - Others are held back until the root card is fully formed
-   - Card proposals do not interrupt the dialogue flow
-8. Session ends when it ends — user stops, context fills up,
-   day is over. There is no "conclusion" phase.
-   The transcript persists; a future session can continue.
-9. Cards proposed during the session go through standard /xettel flow
-   (formulate → approve → publish → create file)
-10. Optionally at any point: agent drafts a blog post from the transcript
-```
+### Resumed session
+
+1. Read `sessions/{uuid}/index.md` — the full transcript.
+2. Append a continuation marker:
+   ```markdown
+
+   ## Resumed — {date}
+
+   ```
+3. Summarize the previous state in 1–2 sentences.
+4. Ask the user what direction to take — continue an open thread,
+   take a new angle, or respond to something they've been thinking
+   about since last time.
+5. **No pre-emptive search.** Searches happen on demand if and when
+   the dialogue calls for them.
+
+### During dialogue (both)
+
+1. **Transcribe continuously.** After every user message:
+   - Write the user's words verbatim (lightly cleaned) under `**User:**`
+   - Respond (question, challenge, clarification)
+   - Record a compressed italic summary of the response under `**LLM:**`
+2. **On-demand search.** When the agent needs to check the knowledge
+   base — the user's past position, counter-arguments, related source
+   material — use the search skill (`thinkbox/skills/search/SKILL.md`).
+   It runs as a Task sub-agent with its own context window: blocking
+   for the main agent but fast (a few seconds), and only a compact
+   summary enters the dialogue context. Trigger search only when
+   clearly needed — not by default.
+3. **On-demand ingest.** When the user provides a URL or asks to
+   process a source, use the ingest skill
+   (`thinkbox/skills/ingest/SKILL.md`). It also runs as a Task
+   sub-agent with its own context window. See "Mid-dialogue ingestion".
+4. **Topic shift.** If the user switches topics mid-session, insert a
+   header into the transcript before the next exchange:
+   ```markdown
+
+   ## Topic: {new topic}
+
+   ```
+5. **Context emerges.** If the user pastes or describes source
+   material, write it into a `## Context: {label}` section in the
+   transcript before continuing.
+6. **Cards emerge throughout.** See "Output > Xettel cards". Card
+   proposals do not interrupt the dialogue flow.
+7. **Session ends when it ends** — user stops, context fills up, day
+   is over. No "conclusion" phase. The transcript persists; resume
+   any time.
+8. **Cards proposed** during the session go through the standard
+   /xettel flow (formulate → approve → publish → create file).
+9. **Optional blog.** At any point, draft a blog post from the
+   transcript.
 
 ### Context preservation
 
@@ -253,22 +267,34 @@ A blog post based on the session — not a raw transcript, but a coherent text i
 
 ## Mid-dialogue ingestion
 
-During a Socrates session the user may ask to ingest a source ("ingest this: <url>", "add this article", etc.). The dialogue pauses during ingestion but the main session's context is protected.
+During a Socrates session the user may ask to ingest a source ("ingest this: <url>", "add this article", etc.). The ingest skill runs as a Task sub-agent with its own context window — the main agent waits for it to finish, but the dialogue context stays protected.
 
 ### Procedure
 
-1. **Run the ingest skill** (`thinkbox/skills/ingest/SKILL.md`). It launches a Task tool sub-agent that handles everything autonomously — UUID generation, download, bib, wiki, MOC, commit — in its own context window.
-2. **When the sub-agent returns**, it provides a summary. The main agent must:
-   a. Present the summary to the user briefly (1–3 sentences: what was ingested, key ideas, files created)
-   b. Append the ingested material to the session transcript under a new section:
+1. **Run the ingest skill** (`thinkbox/skills/ingest/SKILL.md`). It
+   launches a Task tool sub-agent that handles everything autonomously
+   — UUID generation, download, bib, wiki, MOC, commit — in its own
+   context window. The main agent waits for the sub-agent to return
+   (typically a minute or two, depending on the source).
+2. **When the sub-agent returns**, it provides a summary. The main
+   agent must:
+   a. Present the summary to the user briefly (1–3 sentences: what was
+      ingested, key ideas, files created)
+   b. Append an ingested section to the transcript:
       ```markdown
       ## Ingested: {source title}
 
       {Ingestor summary: key takeaways, bib entry link, wiki pages created}
       ```
-   c. Read the newly created bib entry and wiki page summaries (compact — not the full original source) so the material is available in the current session context
-   d. Incorporate the new knowledge into the ongoing dialogue — the agent can now reference, challenge, and connect the ingested material to the user's positions
-3. **The dialogue continues enriched.** New ingested material becomes fair game for Socratic questioning, counter-arguments, and card proposals.
+   c. Read the newly created bib entry and wiki page summaries only
+      (compact — not the full original source) so the material is
+      available in the current session context
+   d. Incorporate the new knowledge into the ongoing dialogue — the
+      agent can now reference, challenge, and connect the ingested
+      material to the user's positions
+3. **The dialogue continues enriched.** New ingested material becomes
+   fair game for Socratic questioning, counter-arguments, and card
+   proposals.
 
 ### Rules
 
