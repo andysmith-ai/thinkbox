@@ -22,7 +22,7 @@ project-root/
 ├── content/                 ← all publishable content (git repo)
 │   ├── index.md             ← top-level navigation, links to MOCs
 │   ├── wiki/                ← LLM-generated knowledge pages + MOCs
-│   ├── x/                   ← xettel: user's atomic thoughts
+│   ├── cards/               ← user's atomic thoughts (one idea per card)
 │   ├── blog/                ← user's long-form articles
 │   └── bib/                 ← bibliography / source registry
 ├── sessions/                ← Socratic dialogue transcripts (private, not in git)
@@ -34,7 +34,7 @@ project-root/
         ├── search/SKILL.md      ← combined search (runs in sub-agent)
         ├── ingest/SKILL.md      ← article ingestion (runs in sub-agent)
         ├── ingest-repo/SKILL.md ← repo ingestion (runs in sub-agent)
-        ├── xettel/SKILL.md
+        ├── card/SKILL.md
         ├── wiki/SKILL.md
         ├── publish/SKILL.md
         └── socrates/SKILL.md
@@ -95,20 +95,20 @@ The LLM owns this layer entirely. It creates pages, updates them as new sources 
 
 **Sources for wiki pages:** anything in the system.
 - Artifacts — the primary input. The LLM reads the ORIGINAL artifact (not the bib summary) during ingest, extracts knowledge, and writes wiki pages that REFERENCE the bib entry.
-- Xettel cards — the user's own ideas are first-class sources. Wiki treats them like ideas from any other thinker. Specific mechanisms:
-  - **Contradiction:** ingest finds an external source that contradicts a user's xettel card. Wiki page notes the disagreement with links to both.
+- Cards — the user's own ideas are first-class sources. Wiki treats them like ideas from any other thinker. Specific mechanisms:
+  - **Contradiction:** ingest finds an external source that contradicts a user's card. Wiki page notes the disagreement with links to both.
   - **Development:** external source extends or deepens a user's idea. Wiki page connects them.
   - **Convergence:** user independently arrived at a conclusion also found in literature. Wiki notes this.
-  - **Clustering:** lint detects a dense cluster of related xettel cards. LLM proposes a concept page synthesizing them.
-- Wiki does NOT copy xettel card text. It links to cards (`[[twitter_id]]`) and writes its own synthesis.
+  - **Clustering:** lint detects a dense cluster of related cards. LLM proposes a concept page synthesizing them.
+- Wiki does NOT copy card text. It links to cards by relative path and writes its own synthesis.
 
 **Page types:**
 - **Source summary** — key takeaways from an ingested source, what's new, what contradicts existing knowledge.
 - **Entity** — a person, project, tool, company. Aggregates everything known.
-- **Concept** — an idea, principle, pattern. Synthesis across sources and xettel.
+- **Concept** — an idea, principle, pattern. Synthesis across sources and cards.
 - **Comparison** — structured comparison of entities or concepts.
 - **Synthesis** — cross-cutting analysis connecting multiple concepts.
-- **MOC (Map of Content)** — thematic navigation page. Links to wiki pages, xettel threads, blog posts, bib entries related to a topic. Created and maintained by the LLM.
+- **MOC (Map of Content)** — thematic navigation page. Links to wiki pages, card threads, blog posts, bib entries related to a topic. Created and maintained by the LLM.
 
 **Format:**
 ```yaml
@@ -119,55 +119,61 @@ wiki_created: 2026-04-05
 wiki_updated: 2026-04-05
 wiki_sources:
   - bib: "069cf951-..."
-  - xettel: "2039600765296386127"
+  - card: "4e74e25e-03e8-7ed3-a252-6023e2d6b6c5"
 tags: [tag1, tag2]
 software_version: "0.1.0"
 ---
 ```
 
-Body: markdown with `[[wikilinks]]`.
+Body: markdown with relative `.md` links.
 
 **File naming:** slug-based. `continuous-assembly.md`, `nassim-taleb.md`, `moc-ai-agents.md`.
 
-### 4. x/ — xettel cards (user's thoughts, public)
+### 4. cards/ — atomic thoughts (user's voice, public)
 
-The user's own atomic, transferable thoughts. 280 characters. One card = one tweet = one thought. Published on Twitter/X and on the site.
+The user's own atomic, transferable thoughts. 280 characters. One card = one idea. Cards are published to external platforms (currently Bluesky; historically Twitter) and on the site.
 
 The LLM helps formulate but never writes cards autonomously — every card must pass through the user.
 
-**All xettel cards are permanent.** There is no literature or fleeting type. Recording external knowledge is wiki's job. Xettel is always the user's own voice. If a thought is inspired by an external source, it's still a permanent card — the source is tracked in metadata and can be included as a URL in the tweet.
+**All cards are permanent.** There is no literature or fleeting type. Recording external knowledge is wiki's job. Cards are always the user's voice. If a thought is inspired by an external source, it's still a permanent card — the source is tracked in the `card_bib` field.
 
-**Cards do NOT contain links to the site.** Pure text + Twitter threading. Wiki, bib, and blog posts may contain site links when announced on Twitter.
+**Cards do NOT contain links to the site.** Pure text, platform-independent. Wiki, bib, and blog posts may contain site links.
 
-**Workflow:** card is created → published to Twitter → Twitter status ID becomes the file name and xettel_id.
+**Identity:** each card is identified by a UUID v7 generated at creation time. The filename IS the identity: there is no `card_id` field inside card files.
+
+**Workflow:** card is drafted → user approves → file is created at `content/cards/{uuid}.md` with empty `card_published[]` → later, the `/publish` skill publishes the card to configured platforms and appends entries to `card_published[]`.
 
 **Format:**
 ```yaml
 ---
-xettel_id: "2039600765296386127"
-xettel_type: permanent
-xettel_published_date: 2026-04-02T07:09:41.249Z
-xettel_reply_to: "2039309313987187063"    # optional, thread placement
-xettel_ref: "2039590834027508118"          # optional, bridge cards (xettel→xettel)
-xettel_bib: "069cf951-a5fa-7141-8000-..."  # optional, source that inspired the card
-xettel_context: "chat 2026-04-05, ..."     # optional, what prompted the card
+card_type: permanent
+card_created: 2026-04-02T07:09:41.249Z
+card_reply_to: "4e64b031-3940-7583-8cee-4d2caaed9496"  # optional, thread placement (local UUID)
+card_ref: "4e740921-63e0-7781-bff2-fb4d9c8a6186"        # optional, bridge card (local UUID)
+card_bib: "069cf951-a5fa-7141-8000-..."                 # optional, external source that inspired the card
+card_context: "chat 2026-04-05, ..."                    # optional, what prompted the card
+card_published:                                          # optional, filled in by /publish
+  - platform: twitter
+    id: "2039600765296386127"
+    date: 2026-04-02T07:09:41.249Z
 software_version: "0.1.0"
 ---
 ```
 
 Body: card text, plain text, no markdown.
 
-**Character limits and URLs in tweets:**
+**External references — law:** every external reference is a bib entry. `card_ref` is strictly local UUID → local UUID. External sources flow through `card_bib`.
+
+**Character limits:**
 - Body only: ≤280 chars
-- Body + source URL (bib_url): ≤257 chars — source URL is appended to tweet so readers can find the original. Used when the card is inspired by an external source.
-- Body + ref (bridge card): ≤257 chars — ref resolves to another tweet's URL
-- Body + ref + source URL: ≤234 chars — both URLs in tweet (rare, tight)
+- Body + 1 URL in body: ≤257 chars
+- Body + 2 URLs in body: ≤234 chars
 
-The source URL comes from `bib_url` of the referenced bib entry. It is appended at publish time, not stored in the card body.
+280 is a thinking discipline, kept regardless of target platform.
 
-**File naming:** `{twitter_status_id}.md`. Filename IS the Twitter ID — direct bidirectional mapping without storing URLs.
+**File naming:** `{uuid7}.md`. The filename is the card ID; reply/ref fields reference other cards by UUID.
 
-**IDs in frontmatter:** plain strings, not `[[wikilinks]]`. The renderer resolves links.
+**IDs in frontmatter:** plain UUID strings. The renderer resolves links.
 
 ### 5. blog/ — user's articles (public)
 
@@ -180,12 +186,11 @@ title: "Article Title"
 description: "One-liner"
 date: 2026-01-27T10:43:54
 featured_image: image.png       # optional
-twitter_discussion: "url"        # optional
 software_version: "0.1.0"
 ---
 ```
 
-Body: markdown with `[[wikilinks]]`.
+Body: markdown with relative `.md` links.
 
 **Directory structure:** `blog/YYYY/MM/slug/index.md`
 
@@ -199,7 +204,7 @@ The LLM reads this first when answering queries or deciding where new content fi
 
 ### MOCs (Maps of Content)
 
-`wiki/moc-{topic}.md` — thematic navigation pages. Each MOC covers a topic area and links to relevant wiki pages, xettel threads, blog posts, and bib entries.
+`wiki/moc-{topic}.md` — thematic navigation pages. Each MOC covers a topic area and links to relevant wiki pages, card threads, blog posts, and bib entries.
 
 MOCs are created and maintained by the LLM. As content grows, the LLM splits large MOCs or creates new ones.
 
@@ -213,10 +218,11 @@ Git log IS the log. Commit messages follow a convention:
 ingest: {source title}
 wiki: create {page title}
 wiki: update {page title}
-xettel: {short description}
+card: {short description}
 blog: {post title}
 bib: {source title}
 lint: {what was fixed}
+publish: {platform} {card_id}
 ```
 
 No separate `log.md`. The index and MOCs handle navigation; git handles history.
@@ -225,7 +231,7 @@ No separate `log.md`. The index and MOCs handle navigation; git handles history.
 
 The agent's default behavior is **Q&A against the knowledge base.** Any question the user asks — the agent reads index, navigates MOCs, reads relevant pages, and synthesizes an answer with citations. No special command needed.
 
-During Q&A, a thought may emerge that's worth capturing as a xettel card. The agent can suggest it; the user can ask for it. The flow naturally transitions from Q&A to `/xettel` without breaking conversation.
+During Q&A, a thought may emerge that's worth capturing as a card. The agent can suggest it; the user can ask for it. The flow naturally transitions from Q&A to `/card` without breaking conversation.
 
 ## Skills
 
@@ -267,7 +273,7 @@ Agent: commits — "ingest: Managing Devices with GitOps"
 **Rules:**
 - Always reads the ORIGINAL artifact, not just metadata.
 - Creates bib entry only for citable sources.
-- Never creates xettel cards — those are the user's thoughts.
+- Never creates cards — those are the user's thoughts.
 - Checks existing wiki pages for contradictions/connections with the new source.
 
 ### /ingest-repo — deep analysis of a GitHub repository
@@ -286,15 +292,15 @@ Clones the repo, navigates code interactively across two axes (technical archite
 
 See `skills/ingest-repo/SKILL.md` for full specification.
 
-### /xettel — create an atomic thought
+### /card — create an atomic thought
 
-**Trigger:** `/xettel [initial thought in any language]`
+**Trigger:** `/card [initial thought in any language]`
 
 Can also emerge naturally from Q&A — user says "let's capture this" or agent suggests "this could be a card."
 
 **Flow:**
 ```
-User: /xettel conflict of interest can't be resolved inside one head
+User: /card conflict of interest can't be resolved inside one head
 
 Agent:
   "Variant: «Conflict of interest can't be resolved inside
@@ -303,32 +309,23 @@ Agent:
    Type: permanent
    Placement: root
 
-   Or reply_to [[2039242733743927461]]?"
+   Or reply_to 4e610197-... (previous thought)?"
 
 User: "root, good"
 
-Agent:
-  "Ready to publish:
-
-   Conflict of interest can't be resolved inside one head.
-
-   Type: permanent | Root | 57 chars
-   Publish to Twitter and give me the ID."
-
-User: ... publishes manually ...
-User: "2039700000000000000"
-
-Agent: creates content/x/2039700000000000000.md
-Agent: commits — "xettel: conflict of interest"
+Agent: generates UUID v7 for the new card
+Agent: creates content/cards/{uuid}.md with empty card_published[]
+Agent: commits — "card: conflict of interest"
 ```
 
 **Rules:**
 - Every card passes through the user. Agent proposes, user approves.
 - Card text is always in English.
 - Body: plain text, no markdown, no links.
-- ≤280 chars (≤257 with ref).
-- File is created only AFTER the user provides the Twitter status ID.
-- Agent may suggest bridge cards connecting to existing xettel/wiki.
+- ≤280 chars (≤257 with 1 URL in body, ≤234 with 2).
+- File is created immediately with empty `card_published[]` — no wait-for-platform-ID.
+- Agent may suggest bridge cards connecting to existing cards / wiki.
+- Publishing is a separate concern — use `/publish` when ready.
 
 ### /blog — create or draft a blog post
 
@@ -349,7 +346,7 @@ User: writes the post
 ```
 User: /blog "Why GitOps Matters"
 User: "write a draft based on wiki/gitops-fleet-management.md
-       and my xettel cards about continuous assembly"
+       and my cards about continuous assembly"
 
 Agent: reads sources, writes draft
 User: edits
@@ -372,7 +369,7 @@ User: /query what connects continuous assembly and fleet management?
 
 Agent: searches Qdrant for semantically related content
 Agent: reads content/index.md → finds relevant MOCs
-Agent: reads wiki pages, xettel cards, bib entries
+Agent: reads wiki pages, cards, bib entries
 Agent:
   "Both approaches apply declarative management to physical systems.
    CA targets hardware/agents, GitOps FM targets device fleets.
@@ -380,8 +377,8 @@ Agent:
    Sources:
    - wiki/continuous-assembly.md
    - wiki/gitops-fleet-management.md
-   - xettel [[2039242733743927461]]
-   - bib [[069cf951-...]]
+   - cards/4e74e25e-03e8-7ed3-a252-6023e2d6b6c5.md
+   - bib/069cf951-...
 
    Save as wiki page (comparison/synthesis)?"
 
@@ -396,7 +393,7 @@ Agent: commits — "wiki: create CA and GitOps synthesis"
 - Always cite sources with links.
 - Use both Qdrant semantic search and structured MOC navigation — semantic search finds unexpected connections, MOCs ensure known territory is covered.
 - Offer to save valuable answers as wiki pages.
-- During Q&A, if a thought worth capturing emerges, suggest `/xettel`.
+- During Q&A, if a thought worth capturing emerges, suggest `/card`.
 
 ### /socrates — knowledge integration through dialogue
 
@@ -411,7 +408,7 @@ Dialogue proceeds with escalation (simple → complex questions)
 Agent records transcript continuously
 Cards emerge during dialogue — proposed with provenance checklist
 Session ends when it ends (user stops, context fills, day is over)
-Cards go through standard /xettel flow
+Cards go through standard /card flow
 Bridges proposed after full cluster is published
 ```
 
@@ -435,7 +432,7 @@ See `skills/socrates/SKILL.md` for full specification.
 - Concepts mentioned but lacking their own page
 - Missing cross-references
 - Bib entries without wiki coverage
-- Dense xettel clusters that could become concept pages
+- Dense card clusters that could become concept pages
 - MOCs that need splitting or reorganizing
 - Suggestions for new sources to investigate
 
@@ -446,7 +443,7 @@ Agent:
   "Found:
    - 3 orphan wiki pages (no inbound links)
    - bib/069cf951-... has no wiki coverage
-   - 6 xettel cards about 'multi-agent systems' — concept page?
+   - 6 cards about 'multi-agent systems' — concept page?
    - wiki/continuous-assembly.md mentions 'Nix' but no entity page
 
    Fix these?"
@@ -455,52 +452,50 @@ User: selects what to fix
 Agent: applies fixes, commits
 ```
 
-## Twitter as the universal link layer
+## Publish layer
 
-All content is announced on Twitter at creation. Every content file stores its `twitter_id`. This makes Twitter the universal entry point — anyone can find any piece of content via a tweet link.
-
-**Xettel:** tweet IS the content. `twitter_id` = filename = `xettel_id`.
-
-**Wiki / bib / blog:** tweet is an announcement with a link to the site page. `twitter_id` stored in frontmatter.
+Cards are authored as UUID-identified files first, and published to external platforms later. A card may be published to zero, one, or many platforms. Each publish appends an entry to `card_published[]`:
 
 ```yaml
-# wiki frontmatter
-twitter_id: "2039800000000000000"
-
-# bib frontmatter
-twitter_id: "2039800000000000000"
-
-# blog frontmatter (rename twitter_discussion → twitter_id)
-twitter_id: "2039800000000000000"
+card_published:
+  - platform: twitter
+    id: "2039600765296386127"
+    date: 2026-04-02T07:09:41.249Z
+  - platform: bluesky
+    id: "at://did:plc:.../app.bsky.feed.post/..."
+    date: 2026-04-10T09:00:00.000Z
 ```
 
-### ref scope: any content with a twitter_id
+The publish platform is not coupled to the card's identity. If an account is lost, a card can be re-published elsewhere without changing its UUID or its local links.
 
-`xettel_ref` can point to ANY content that has been announced on Twitter — xettel cards, wiki pages, bib entries, blog posts. Ref always stores a twitter_id. At publish time, it resolves to the tweet URL.
+**Current target platforms:** Bluesky (primary going forward). Twitter entries exist for legacy cards as a historical record; new cards do not publish to Twitter.
 
-This means bridge cards can connect the user's thoughts to anything on Twitter:
-- xettel → xettel (thought connects to thought)
-- xettel → wiki (thought connects to structured knowledge)
-- xettel → bib (thought connects to a source)
-- xettel → blog (thought connects to an article)
-- xettel → external tweet (thought connects to someone else's idea)
+**Configuration:** target platforms and credentials live in `~/.config/thinkbox/config.toml` (outside the repo). The `/publish` skill reads this file.
 
-If a twitter_id doesn't match any local content file, it's an external tweet. No special flag needed.
+### Local references vs external sources
+
+Two different fields, two different meanings:
+
+- `card_ref`: **strictly local UUID → local UUID.** Bridge between two cards in the same knowledge base.
+- `card_bib`: **external source.** Points to a bib entry (by bib UUID). Every external reference is a bib entry — no exceptions.
+
+This rule keeps local graph edges clean and separates internal structure from external citation.
 
 ### Stability rule for published content
 
-A wiki page (or any content) that has a `twitter_id` is **published and stable.** Bridge cards and other tweets may reference it. The content can be enriched (new sources, additional detail), but must not be rewritten to contradict its original position. If new information fundamentally contradicts a published page, create a new page with the new position and note the contradiction on both pages.
+A card with a non-empty `card_published[]` is **published and stable.** Its body must not be rewritten to contradict what was published. If new information contradicts a published card, create a new card and note the contradiction on both. Wiki pages can always be enriched, but structural positions should similarly be preserved once linked from the outside world.
 
 ## Cross-references
 
-- wiki → bib: `[[069cf951-...]]`
-- wiki → wiki: `[[slug]]`
-- wiki → xettel: `[[2039600765296386127]]`
-- wiki → blog: `[[2026/01/slug]]`
-- xettel → xettel: `xettel_reply_to`, `xettel_ref` (frontmatter, twitter_ids)
-- xettel → any content: `xettel_ref` (frontmatter, twitter_id of target)
-- xettel → bib: `xettel_bib` (frontmatter, artifact UUID)
-- blog → anything: `[[target]]` in body
+All internal links are relative markdown links with `.md` extensions.
+
+- wiki → bib: `[Title](../bib/069cf951-....md)`
+- wiki → wiki: `[Title](other-page.md)`
+- wiki → card: `[snippet](../cards/4e74e25e-....md)`
+- wiki → blog: `[Title](../blog/2026/01/slug/index.md)`
+- card → card: `card_reply_to`, `card_ref` (frontmatter, local UUIDs)
+- card → bib: `card_bib` (frontmatter, bib UUID — the only external reference path)
+- blog → anything: relative `.md` link in body
 - Backlinks: computed at build time by the renderer
 
 ## ID schemes
@@ -509,7 +504,7 @@ A wiki page (or any content) that has a `twitter_id` is **published and stable.*
 |---|---|---|
 | Artifacts | UUID v7 | `069cf951-a5fa-7141-8000-494f71cd145d` |
 | Bib entries | Same UUID as artifact | `069cf951-a5fa-7141-8000-494f71cd145d` |
-| Xettel cards | Twitter status ID | `2039600765296386127` |
+| Cards | UUID v7 | `4e74e25e-03e8-7ed3-a252-6023e2d6b6c5` |
 | Wiki pages | Slug | `continuous-assembly` |
 | Blog posts | Path slug | `2026/01/product-over-technology` |
 
@@ -528,7 +523,7 @@ All content files are indexed in a Qdrant vector database for semantic search.
 
 ### What gets indexed
 
-Everything in `content/`: wiki pages, xettel cards, blog posts, bib entries. NOT artifacts (private, copyrighted).
+Everything in `content/`: wiki pages, cards, blog posts, bib entries. NOT artifacts (private, copyrighted).
 
 ### Indexing pipeline
 
@@ -549,20 +544,20 @@ upsert to Qdrant
 ### Collection structure
 
 One collection. Each point includes metadata:
-- `type`: wiki | xettel | blog | bib
+- `type`: wiki | cards | blog | bib
 - `path`: file path relative to content/
-- `title`: page title or first line (for xettel)
+- `title`: page title or first line (for cards)
 - `tags`: from frontmatter
 - Frontmatter fields relevant to the type
 
 ### Agent search interface
 
-`thinkbox/scripts/search.sh` — CLI wrapper around `search.py`. Embeds the query with the same model (Qwen3-Embedding-8B via OpenRouter) and searches Qdrant. Returns ranked results with path, title, score, and full file content. Supports `-t` filter (wiki/x/bib/blog) and `-n` limit.
+`thinkbox/scripts/search.sh` — CLI wrapper around `search.py`. Embeds the query with the same model (Qwen3-Embedding-8B via OpenRouter) and searches Qdrant. Returns ranked results with path, title, score, and full file content. Supports `-t` filter (wiki/cards/bib/blog) and `-n` limit.
 
 ### Indexing pipeline (implementation)
 
 `thinkbox-embed` (installed via `pip install git+...thinkbox.git`) — runs on push to main (GitHub Action) or locally:
-1. Walks `wiki/`, `x/`, `bib/`, `blog/` — collects all `.md` files
+1. Walks `wiki/`, `cards/`, `bib/`, `blog/` — collects all `.md` files
 2. Computes SHA-256 hash per file, compares with Qdrant state
 3. Embeds new/changed files via OpenRouter, upserts to Qdrant
 4. Deletes points for removed files
@@ -579,27 +574,14 @@ Claude Code direct — Write/Edit/Grep tools on content/ and artifacts/ files. Q
 
 For web sources, the agent uses WebFetch to download articles. For local files, the user points to the path. Artifacts are stored locally in `artifacts/` (will migrate to S3).
 
-## Reconciling SKILL.md
-
-The xettel SKILL.md (v1.2.0) will be rewritten to match actual format:
-
-| Change | Detail |
-|---|---|
-| Nested `meta: {}` → flat frontmatter | `xettel_type`, `xettel_reply_to`, etc. |
-| `[[wikilink]]` in meta → plain strings | `xettel_reply_to: "id"` |
-| `scope`, `version` per card → dropped | Replaced by `software_version` |
-| `url` field → dropped | Filename IS the Twitter ID |
-| `source`/`link` → `xettel_bib` | Bib entry holds source details |
-| `context` → `xettel_context` | Optional field |
-| Method and philosophy sections | Preserved as-is |
-
 ## What thinkbox ships
 
 For someone else to use this system:
 
-1. `thinkbox/` — skills, conventions, this architecture doc
+1. `thinkbox/` — skills, conventions, scripts, this architecture doc
 2. A renderer (Astro template or bring your own)
-3. `content/` scaffold — empty `wiki/`, `x/`, `blog/`, `bib/`, `index.md`
+3. `content/` scaffold — empty `wiki/`, `cards/`, `blog/`, `bib/`, `index.md`
 4. `artifacts/` directory (local or S3)
+5. `~/.config/thinkbox/config.toml` — target platforms and credentials for publishing
 
 The content is personal. The platform is the method.

@@ -10,4 +10,4 @@ Read the introductory blog post: [Thinkbox: an LLM Knowledge Base with a Public 
 
 - `ARCHITECTURE.md` — full system design
 - `CLAUDE.md` — LLM conventions for content creation
-- `skills/` — skill definitions (ingest, xettel, wiki)
+- `skills/` — skill definitions (ingest, card, wiki)

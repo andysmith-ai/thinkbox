@@ -1,7 +1,7 @@
 ---
 name: publish
 description: >
-  Prepare xettel cards for publication on X (Twitter).
+  Prepare cards for publication on X (Twitter).
   Outputs ready-to-copy posts into x.md at workspace root.
   Use this skill when the user says "publish", "post",
   "prepare for publication", or asks to put a card into x.md.
@@ -11,9 +11,11 @@ description: >
 
 Version: **0.1.0**
 
+> **Note:** This skill is scheduled for replacement. It still describes the legacy Twitter-only flow where card files are named by Twitter status ID. The new publish flow (UUID-identified cards, pluggable platform adapters, `card_published[]` tracking) is defined in `thinkbox/ARCHITECTURE.md` under "Publish layer" and will be implemented in a follow-up step.
+
 ## Purpose
 
-Take approved xettel card text and prepare it for publication in `x.md` — the user's copy-paste buffer for posting to X. The user should be able to open the file, copy the text, and paste it into X with zero assembly.
+Take approved card text and prepare it for publication in `x.md` — the user's copy-paste buffer for posting to X. The user should be able to open the file, copy the text, and paste it into X with zero assembly.
 
 ## Output file
 
@@ -65,11 +67,11 @@ Card text here. https://x.com/andysmith_ai/status/<ref_id>
 
 1. Agent writes the first publishable card into `x.md`.
 2. User publishes it on X, pastes the status ID back.
-3. Agent creates `content/x/{status_id}.md` with proper frontmatter.
+3. Agent appends `{platform: twitter, id: {status_id}, date: {today}}` to the card's `card_published` list in `content/cards/{uuid}.md`.
 4. If there are more cards, agent writes the next card into `x.md` (with the real `Reply to:` URL if it depended on the previous card's ID).
 5. Repeat 2–4 until all cards are published.
 6. Agent updates MOCs and wiki pages (see graph integration below).
-7. Agent commits all created files and navigation updates together (`xettel: ...`).
+7. Agent commits all changed files and navigation updates together (`publish: ...`).
 
 ## After publishing: graph integration
 
@@ -90,5 +92,5 @@ If the user approves, formulate the bridge card and continue the publish flow.
 
 ## What this skill does NOT do
 
-- Does not formulate cards — that's `/xettel`.
+- Does not formulate cards — that's `/card`.
 - Does not publish to X — the user does that manually.

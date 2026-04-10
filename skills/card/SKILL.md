@@ -1,15 +1,14 @@
 ---
-name: xettel
+name: card
 description: >
-  Write and manage Xettel cards — Twitter-native Zettelkasten notes.
-  Each card is a single thought formatted as a tweet (≤280 characters).
-  Use this skill whenever the user mentions "xettel", "tweet", "card",
-  or asks to turn an idea into a tweet-sized note, draft a thread,
-  or formulate a thought concisely. Also triggers when the user says
-  "save this as a tweet" or "make a thread from this."
+  Write and manage cards — Zettelkasten-style atomic notes. Each card is a
+  single thought formatted to fit in 280 characters. Use this skill whenever
+  the user mentions "card", asks to turn an idea into a note, draft a
+  thread, or formulate a thought concisely. Also triggers when the user
+  says "save this as a card" or "make a thread from this."
 ---
 
-# Xettel: Twitter-native Zettelkasten
+# Card: atomic thought notes
 
 Version: **0.1.0**
 
@@ -55,59 +54,62 @@ No "as discussed above." No implicit references. No cards that only make sense a
 
 The box should actively seek disagreement. Dis-confirming data is more valuable than confirming data, because it opens more possible connections and discussions. A card that contradicts an existing card is not a problem — it is an opportunity.
 
-## Card Type
+## Card type
 
-**All new xettel cards are permanent.** Xettel is the user's own voice. If a thought is inspired by an external source, it's still a permanent card — the source is tracked in `xettel_bib` metadata and the source URL can be included in the tweet.
+**All new cards are permanent.** Cards are the user's own voice. If a thought is inspired by an external source, it's still a permanent card — the source is tracked in `card_bib` metadata.
 
-Legacy `literature` cards exist in the archive and will be rewritten over time. Do not create new literature cards.
+Legacy `literature` cards exist in the archive from an earlier convention. Do not create new literature cards.
 
-## Card Format
+## Card format
 
 ### Body
 
 - **Clean text — exactly what gets published.** No wikilinks, no markdown. Plain text only.
 - **Language: English only.** Body, context, all fields.
-- **Style: write as you would in the strongest paragraph of your best paper.** Clear, precise, direct. Not Twitter-casual and not bad-academic.
+- **Style: write as you would in the strongest paragraph of your best paper.** Clear, precise, direct. Not social-media-casual and not bad-academic.
 - No title. The body is the entire content.
 
-### Character Counting
+### Character counting
+
+280 characters is a thinking discipline, not a platform constraint. It is kept regardless of target platform.
 
 1. Count all visible characters in the body.
-2. Each URL appended to the tweet consumes 23 characters (t.co shortening) + 1 space separator.
+2. Any URL appearing in the body counts as 23 characters + 1 space separator (the historic t.co budget — kept as a uniform rule so cards stay portable across platforms).
 3. Limits:
    - Body only: **≤280** chars
-   - Body + 1 URL (ref or source URL): **≤257** chars
-   - Body + 2 URLs (ref + source URL): **≤234** chars
+   - Body + 1 URL in body: **≤257** chars
+   - Body + 2 URLs in body: **≤234** chars
 
-Bridge cards always have a ref, so their limit is always 257 (or 234 if they also have a source URL).
+Card bodies normally do NOT contain URLs — external references flow through `card_bib`, and bridge refs through `card_ref`. URLs in the body are only for rare cases where the URL is an essential part of the thought.
 
 ### Frontmatter
 
 ```yaml
 ---
-xettel_id: "2039600765296386127"
-xettel_type: permanent
-xettel_published_date: 2026-04-02T07:09:41.249Z
-xettel_reply_to: "2039309313987187063"       # optional, thread placement
-xettel_ref: "2039590834027508118"             # optional, bridge cards
-xettel_bib: "069cf951-a5fa-7141-8000-..."     # optional, source that inspired the card
-xettel_context: "chat 2026-04-05, ..."        # optional, what prompted the card
+card_type: permanent
+card_created: 2026-04-05T12:34:56.000Z
+card_reply_to: "4e6101fa-c998-7b33-a2e2-621a532edee3"   # optional, thread placement
+card_ref: "4e72ff2a-2008-7132-a43b-0a2a4ed04ce0"         # optional, bridge cards
+card_bib: "069cf951-a5fa-7141-8000-494f71cd145d"         # optional, source that inspired the card
+card_context: "chat 2026-04-05, knowledge integration"   # optional, what prompted the card
+card_published: []                                        # filled in by /publish
 software_version: "0.1.0"
 ---
 ```
 
-- **xettel_id** — Twitter status ID. Same as filename.
-- **xettel_type** — always `permanent`.
-- **xettel_published_date** — ISO 8601 timestamp of publication.
-- **xettel_reply_to** — Twitter ID of parent card. Absent for root cards.
-- **xettel_ref** — Twitter ID of referenced card/content. Only on bridge cards. Can point to any content with a twitter_id: xettel cards, wiki pages, bib entries, blog posts, or external tweets.
-- **xettel_bib** — UUID of the bib entry for the source that inspired this card. Source URL comes from the bib entry's `bib_url`.
-- **xettel_context** — free text describing what prompted this card.
+- **filename IS the card ID** — a UUID v7 string. There is no `card_id` field inside the file.
+- **card_type** — always `permanent`.
+- **card_created** — ISO 8601 timestamp when the card file was created.
+- **card_reply_to** — UUID of parent card. Absent for root cards. LOCAL only (must point to another card file in `content/cards/`).
+- **card_ref** — UUID of referenced local content. Only on bridge cards. LOCAL only — must point to another card, wiki page, bib entry, or blog post in this knowledge base. External sources go through `card_bib`.
+- **card_bib** — UUID of the bib entry for the source that inspired this card.
+- **card_context** — free text describing what prompted this card.
+- **card_published** — list of `{platform, id, date}` entries, one per platform the card has been published on. Starts empty and is populated by `/publish`. Empty/absent until first publish.
 - **software_version** — thinkbox platform version.
 
 ### File naming
 
-`content/x/{twitter_status_id}.md` — filename IS the Twitter ID.
+`content/cards/{uuid7}.md` — filename is a UUID v7 string. Generate via `thinkbox/scripts/uuid7.sh`.
 
 ## Placement
 
@@ -121,50 +123,50 @@ software_version: "0.1.0"
 
 When placing a card, ask: "In which circumstances will I want to stumble upon this card, even if I forget about it?" Place the card where it will surprise you later, not where it seems tidy now.
 
-## Linking Principle
+## Linking principle
 
 Cards don't link to each other directly. To connect card X and card Y, create a bridge card Z:
 
-1. Z has `xettel_reply_to: "<X_id>"`, `xettel_ref: "<Y_id>"`
+1. Z has `card_reply_to: "<X_uuid>"`, `card_ref: "<Y_uuid>"`
 2. Z's text formulates the connection — why X relates to Y
-3. Z's character limit is 257 (always has ref)
+3. Z's character limit is 280 (bridge refs are in frontmatter, not the body)
 
 ### Direction
 
-- `xettel_reply_to` — where the conclusion flows from. Z lives in this thread.
-- `xettel_ref` — where the conclusion points to. The related idea.
+- `card_reply_to` — where the conclusion flows from. Z lives in this thread.
+- `card_ref` — where the conclusion points to. The related idea.
 
 ### Ref scope
 
-`xettel_ref` can point to any twitter_id — xettel cards, wiki pages, bib entries, blog posts, or external tweets. If a twitter_id doesn't match any local content file, it's an external tweet.
+`card_ref` is strictly local — it must point to a file in `content/` (card, wiki page, bib entry, or blog post) by its local identifier. External sources are never referenced by `card_ref`; they flow through `card_bib`.
 
 ## Threads
 
-A thread is a chain of `xettel_reply_to` connections. No separate thread object. Threads can branch (two cards with the same `xettel_reply_to`).
+A thread is a chain of `card_reply_to` connections. No separate thread object. Threads can branch (two cards with the same `card_reply_to`).
 
 ## Workflow
 
 1. **Formulate:** User provides a thought (in any language). Agent formulates it in English, ≤280 chars, proposes placement (root or reply_to).
 2. **Approve:** User approves the text and placement.
-3. **Publish:** User publishes to Twitter manually and provides the status ID.
-4. **Create file:** Agent creates `content/x/{status_id}.md` with frontmatter and body.
-5. **Commit:** `xettel: {short description}`
+3. **Create file:** Agent generates a UUID v7 (`thinkbox/scripts/uuid7.sh`) and creates `content/cards/{uuid}.md` with frontmatter and body. `card_published` starts empty.
+4. **Commit:** `card: {short description}`
 
-The agent NEVER publishes or creates the file before the user provides the Twitter ID.
+The card file exists as soon as it is written — there is no "wait for platform ID" step. Publication is a separate concern handled by `/publish`.
 
 ## Creating a card (file-based)
 
 ```
-Write content/x/{twitter_id}.md:
+1. Run: thinkbox/scripts/uuid7.sh  →  {uuid}
+2. Write content/cards/{uuid}.md:
 
 ---
-xettel_id: "{twitter_id}"
-xettel_type: permanent
-xettel_published_date: {ISO timestamp}
-xettel_reply_to: "{parent_id}"          # if reply
-xettel_ref: "{ref_id}"                  # if bridge
-xettel_bib: "{bib_uuid}"               # if inspired by source
-xettel_context: "chat {date}, {topic}"
+card_type: permanent
+card_created: {ISO timestamp}
+card_reply_to: "{parent_uuid}"          # if reply
+card_ref: "{ref_uuid}"                  # if bridge
+card_bib: "{bib_uuid}"                  # if inspired by source
+card_context: "chat {date}, {topic}"
+card_published: []
 software_version: "0.1.0"
 ---
 Card text here, plain text, ≤280 chars.

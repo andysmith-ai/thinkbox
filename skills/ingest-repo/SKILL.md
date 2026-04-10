@@ -46,7 +46,7 @@ Execute the full repo ingestion flow. Follow these instructions exactly.
 - NixOS system
 - Never read `.env` or `.mcp.json` files
 - All shell operations go through scripts in `thinkbox/scripts/`
-- Semantic search: `thinkbox/scripts/search.sh '<query>' [-n limit] [-t wiki|x|bib|blog]`
+- Semantic search: `thinkbox/scripts/search.sh '<query>' [-n limit] [-t wiki|cards|bib|blog]`
 
 ## Flow
 
@@ -82,7 +82,7 @@ Execute the full repo ingestion flow. Follow these instructions exactly.
 4. Search existing knowledge base for connections and contradictions:
    ```bash
    thinkbox/scripts/search.sh '<key concept>' -t wiki
-   thinkbox/scripts/search.sh '<key concept>' -t x
+   thinkbox/scripts/search.sh '<key concept>' -t cards
    thinkbox/scripts/search.sh '<key concept>' -t bib
    ```
    Also use Grep to find exact mentions in content/ and read relevant MOCs via `content/index.md`.
@@ -140,7 +140,7 @@ Execute the full repo ingestion flow. Follow these instructions exactly.
    ```
    - All links: relative markdown with `.md` extensions
    - Writing style: clear, precise, factual. No hedging, no filler.
-   - If source contradicts an existing xettel card, note the disagreement with links to both.
+   - If source contradicts an existing card, note the disagreement with links to both.
 
 8. Update MOCs in `content/wiki/moc-*.md` and `content/index.md` as needed.
 
@@ -167,11 +167,11 @@ Execute the full repo ingestion flow. Follow these instructions exactly.
 
 ## Rules
 
-- Never create xettel cards — those are the user's thoughts
+- Never create cards — those are the user's thoughts
 - Never ask for user input — you run autonomously
 - Create bib entries only for citable sources
 - All wiki pages follow the linking rule: relative markdown links with `.md` extensions
-- Concept pages derive authority from bib entries, not xettel cards
+- Concept pages derive authority from bib entries, not cards
 - Always read actual source code, not just README
 
 ## Return value

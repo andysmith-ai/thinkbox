@@ -40,10 +40,10 @@ Every session does two things simultaneously:
 
 The agent is not a rubber duck. The agent has access to two sources of counter-positions:
 
-1. **The user's own knowledge base** — existing xettel cards, wiki pages, bib entries. The agent acts as an advocate of the user's past self against the user's present self.
+1. **The user's own knowledge base** — existing cards, wiki pages, bib entries. The agent acts as an advocate of the user's past self against the user's present self.
 2. **General knowledge** — known counter-arguments, positions of established thinkers, standard objections. The agent presents these not as its own position but as "here's what a critic would say."
 
-When the user disagrees with a counter-argument, they must argue why. This produces the most valuable output: thesis + counter-argument + response. All three belong in xettel.
+When the user disagrees with a counter-argument, they must argue why. This produces the most valuable output: thesis + counter-argument + response. All three belong as cards.
 
 ### Escalation: simple to complex
 
@@ -201,13 +201,13 @@ User says `/socrates` with one of:
 5. **Context emerges.** If the user pastes or describes source
    material, write it into a `## Context: {label}` section in the
    transcript before continuing.
-6. **Cards emerge throughout.** See "Output > Xettel cards". Card
+6. **Cards emerge throughout.** See "Output > Cards". Card
    proposals do not interrupt the dialogue flow.
 7. **Session ends when it ends** — user stops, context fills up, day
    is over. No "conclusion" phase. The transcript persists; resume
    any time.
 8. **Cards proposed** during the session go through the standard
-   /xettel flow (formulate → approve → publish → create file).
+   /card flow (formulate → approve → create file).
 9. **Optional blog.** At any point, draft a blog post from the
    transcript.
 
@@ -222,7 +222,7 @@ The main session's context window is precious — it holds the dialogue. Protect
 
 ## Output
 
-### Xettel cards
+### Cards
 
 Cards emerge during the dialogue, not only at the end. When the user articulates something that passes the transferability test, the agent flags it: "This could be a card." Sometimes the card is ready immediately. Sometimes it's better to hold it — the user may still be forming the root idea, and publishing a reply before the root exists creates dependency problems.
 
@@ -241,7 +241,7 @@ User's words: "..." (quote from transcript)
 - [ ] Based on user's words, not agent's interpretation
 - [ ] Self-contained — understandable without session context
 - [ ] Scientific writing style
-- [ ] Checked connections to existing xettel (for placing: root vs reply_to)
+- [ ] Checked connections to existing cards (for placing: root vs reply_to)
 - [ ] Bridges proposed (if applicable — see bridge rule below)
 ```
 
@@ -249,9 +249,9 @@ After user approval, save the proposal with its checklist to the transcript befo
 
 **Bridge rule.** Do not propose bridges per-card. When publishing a cluster of cards from one session, propose bridges after the entire cluster is published. This avoids fragmenting the workflow and lets the agent see the full picture before drawing connections.
 
-Cards from a Socrates session use `xettel_context` to record their origin:
+Cards from a Socrates session use `card_context` to record their origin:
 ```yaml
-xettel_context: "socrates {date}, {topic}"
+card_context: "socrates {date}, {topic}"
 ```
 
 Thread structure should reflect the reasoning chain: premise → development → conclusion. Each card is self-contained, but the thread allows reconstructing the full argument.
@@ -306,6 +306,6 @@ During a Socrates session the user may ask to ingest a source ("ingest this: <ur
 ## What this skill does NOT do
 
 - Does not run ingestion inline — delegates to a sub-agent
-- Does not formulate cards — that's `/xettel` (Socrates proposes, xettel flow handles the rest)
+- Does not formulate cards — that's `/card` (Socrates proposes, card flow handles the rest)
 - Does not publish — that's `/publish`
 - Does not create cards autonomously — every card passes through the user

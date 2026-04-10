@@ -12,19 +12,22 @@ See `ARCHITECTURE.md` for the full system design. This file covers conventions t
 - Body: markdown with relative `.md` links
 - File naming: `slug.md` (e.g. `continuous-assembly.md`, `moc-ai-agents.md`)
 
-### Xettel (`content/x/`)
-- Frontmatter: `xettel_id`, `xettel_type`, `xettel_published_date`, `xettel_reply_to`, `xettel_ref`, `xettel_bib`, `xettel_context`, `software_version`
+### Cards (`content/cards/`)
+- Frontmatter: `card_type`, `card_created`, `card_reply_to`, `card_ref`, `card_bib`, `card_context`, `card_published`, `software_version`
+- Filename IS the card ID — no `card_id` field inside the file.
 - Body: plain text, no markdown, no wikilinks, English only
-- Character limits: 280 (body only), 257 (with ref or source URL), 234 (ref + source URL)
-- File naming: `{twitter_status_id}.md`
+- Character limits: 280 (body only), 257 (with 1 URL in body), 234 (with 2 URLs in body)
+- File naming: `{uuid7}.md`
+- `card_published` is a list of `{platform, id, date}` entries — one per platform the card has been published to. Empty/absent until first publish.
 
 ### Blog (`content/blog/`)
-- Frontmatter: `title`, `description`, `date`, `featured_image`, `twitter_id`, `software_version`
+- Frontmatter: `title`, `description`, `date`, `featured_image`, `software_version`
 - Body: markdown with relative `.md` links
 - File naming: `YYYY/MM/slug/index.md`
 
 ### Bib (`content/bib/`)
-- Frontmatter: `bib_id`, `bib_type`, `bib_title`, `bib_author`, `bib_url`, `bib_added`, `twitter_id`, `software_version`
+- Frontmatter: `bib_id`, `bib_type`, `bib_title`, `bib_author`, `bib_url`, `bib_added`, `card_id`, `software_version`
+- `card_id` optionally points to the local card that discusses this source.
 - Body: LLM-generated summary
 - File naming: `{uuid7}.md`
 
@@ -32,19 +35,19 @@ See `ARCHITECTURE.md` for the full system design. This file covers conventions t
 
 - Clear, precise, factual. No hedging, no filler.
 - Cite sources with relative markdown links (see linking rule below).
-- Wiki pages synthesize — they don't copy. Link to xettel cards, don't reproduce their text.
-- Every claim should be traceable to a source (bib entry or xettel card).
+- Wiki pages synthesize — they don't copy. Link to cards, don't reproduce their text.
+- Every claim should be traceable to a source (bib entry or card).
 
 ## MOC conventions
 
 - Filename: `moc-{topic}.md`, wiki_type: `moc`
-- Links to wiki pages, xettel threads, blog posts, bib entries related to the topic
+- Links to wiki pages, card threads, blog posts, bib entries related to the topic
 - Split large MOCs when they exceed ~30 links
 - `content/index.md` links to top-level MOCs
 
 ## Stability rule
 
-A page with a `twitter_id` is **published and stable**. It can be enriched but must not be rewritten to contradict its original position. If new information contradicts a published page, create a new page and note the contradiction on both.
+A card with a non-empty `card_published` list is **published and stable**. It can be enriched by linking from other content but its body must not be rewritten to contradict what was published. If new information contradicts a published card, create a new card and note the contradiction on both.
 
 ## Linking rule
 
@@ -56,22 +59,22 @@ Paths are relative to the source file's location within `content/`.
 |---|---|---|
 | index.md | wiki page | `[Title](wiki/slug.md)` |
 | wiki | wiki | `[Title](other-page.md)` |
-| wiki | xettel | `[snippet](../x/2039600765296386127.md)` |
+| wiki | card | `[snippet](../cards/4e74e25e-03e8-7ed3-a252-6023e2d6b6c5.md)` |
 | wiki | blog | `[Title](../blog/2026/01/slug/index.md)` |
 | wiki | bib | `[Title](../bib/069cf951-....md)` |
 | blog | wiki | `[Title](../../wiki/slug.md)` |
 
-Xettel card bodies never contain links — all linking is via frontmatter fields (`xettel_reply_to`, `xettel_ref`, `xettel_bib`).
+Card bodies never contain links — all linking is via frontmatter fields (`card_reply_to`, `card_ref`, `card_bib`).
 
 ## Search
 
-All content is indexed in Qdrant (collection: `content`, 4096-dim Qwen3-Embedding-8B vectors). Each point carries payload: `path`, `type` (wiki/x/bib/blog), `content_hash`, plus all frontmatter fields.
+All content is indexed in Qdrant (collection: `content`, 4096-dim Qwen3-Embedding-8B vectors). Each point carries payload: `path`, `type` (wiki/cards/bib/blog), `content_hash`, plus all frontmatter fields.
 
 **In the main session:** use the search skill (`thinkbox/skills/search/SKILL.md`). It launches a sub-agent that combines semantic (Qdrant), full-text (grep), and MOC navigation, returning a compact summary. This protects the main session's context window.
 
 **Inside a sub-agent:** use `thinkbox/scripts/search.sh` directly, since you're already in an isolated context.
 
-**Search script:** `thinkbox/scripts/search.sh '<query>' [-n limit] [-t wiki|x|bib|blog]`
+**Search script:** `thinkbox/scripts/search.sh '<query>' [-n limit] [-t wiki|cards|bib|blog]`
 
 ## Sub-agent skills
 
@@ -89,11 +92,13 @@ Some skills run their work in a Task tool sub-agent to protect the main session'
 - Sub-agents cannot spawn other sub-agents (no nesting)
 - All heavy work stays in the sub-agent's context — only compact summaries return to the main session
 
-## Character counting for xettel
+## Character counting for cards
+
+280 characters is a thinking discipline, not a platform constraint. It is kept regardless of target platform.
 
 1. Count all visible characters in the body
-2. Each URL appended to the tweet consumes 23 characters (t.co shortening) + 1 space separator
+2. Any URL appearing in the body counts as 23 characters + 1 space separator (the historic t.co budget — kept as a uniform rule so cards stay portable across platforms)
 3. Limits:
    - Body only: **280** chars
-   - Body + 1 URL (ref or source): **257** chars (280 - 23)
-   - Body + 2 URLs (ref + source): **234** chars (280 - 23 - 23)
+   - Body + 1 URL: **257** chars (280 - 23)
+   - Body + 2 URLs: **234** chars (280 - 23 - 23)

@@ -112,7 +112,7 @@ Execute the full ingestion flow. Follow these instructions exactly.
      ```
    - All links: relative markdown with `.md` extensions
    - Writing style: clear, precise, factual. No hedging, no filler.
-   - If source contradicts an existing xettel card, note the disagreement with links to both.
+   - If source contradicts an existing card, note the disagreement with links to both.
 
 7. Update MOCs in `content/wiki/moc-*.md` and `content/index.md` as needed.
 
@@ -124,11 +124,11 @@ Execute the full ingestion flow. Follow these instructions exactly.
 
 ## Rules
 
-- Never create xettel cards — those are the user's thoughts
+- Never create cards — those are the user's thoughts
 - Never ask for user input — you run autonomously
 - Create bib entries only for citable sources
 - All wiki pages follow the linking rule: relative markdown links with `.md` extensions
-- Concept pages derive authority from bib entries, not xettel cards
+- Concept pages derive authority from bib entries, not cards
 
 ## Return value
 
