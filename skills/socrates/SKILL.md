@@ -82,52 +82,13 @@ Use these categories to vary your questioning:
 
 ## Session transcript
 
-Every Socrates session is recorded in a transcript file.
+Every Socrates session is recorded via the **transcribator** skill (`thinkbox/skills/transcribator/SKILL.md`). Transcribator owns the transcript format, storage (`sessions/{uuid7}/index.md`), and the update discipline (user words verbatim, LLM summary italic, append after every exchange). Socrates defines the method; transcribator takes notes.
 
-### Storage
+When running a Socrates session:
 
-`sessions/{uuid7}/index.md` — one directory per session, UUID v7 as identifier.
-
-### Format
-
-A new session starts with just a header:
-
-```markdown
-# Socratic session — {date}
-
-```
-
-The body is a sequence of `**User:**` / `**LLM:**` exchanges:
-
-```markdown
-**User:** {user's words, close to verbatim — fix spelling, punctuation,
-remove filler words, but preserve meaning and phrasing exactly}
-
-**LLM:** *{agent's contribution compressed to a few words —
-just enough to understand the direction of the dialogue}*
-
-**User:** {next user message}
-
-...
-```
-
-Optional H2 headers are inserted into the transcript as the session
-develops — never pre-filled, only added when there's something to
-record:
-
-- `## Topic: {label}` — when a topic becomes clear, or shifts
-- `## Context: {source label}` — when source material is introduced
-  (followed by the material, verbatim or lightly edited)
-- `## Ingested: {title}` — when something is ingested mid-session
-  (followed by the ingestor summary and links to bib/wiki)
-- `## Resumed — {date}` — when the session is resumed after a break
-
-### Rules
-
-1. **Context is written when it appears.** A session may start with no context at all — the user may be thinking out loud, unsure of the topic. When source material is introduced mid-session (pasted text, ingested article, quoted post), write a `## Context:` section before continuing the dialogue. Self-contained transcripts matter for resumption, but only record context that actually exists — never pre-fill.
-2. **User's words are sacred.** Record close to verbatim. Fix spelling, punctuation, remove filler words ("uh", "like", "well"). Do NOT rephrase, summarize, or interpret. The user owns the transcript.
-3. **Agent's words are compressed.** The agent's contributions are reduced to a brief italic summary — just enough to follow the flow. The transcript is about the user's thinking, not the agent's questions.
-4. **Update after every exchange.** Do not wait until the end of the session. Write to the transcript continuously so nothing is lost if the session ends unexpectedly or context is compressed.
+- The very first step is to start a transcribator session (new or resumed) — see "Flow > Entry point" below.
+- During the dialogue, every exchange is appended to the transcript per the transcribator rules.
+- Socrates-specific markers (topic shifts, ingested sources, resumed markers) use the headers defined in transcribator.
 
 ## Flow
 
@@ -141,45 +102,21 @@ User says `/socrates` with one of:
 
 ### New session
 
-1. Generate UUID v7: `thinkbox/scripts/uuid7.sh`
-2. Create `sessions/{uuid}/index.md` with just a header:
-   ```markdown
-   # Socratic session — {date}
-
-   ```
-3. Ready to transcribe. **No pre-emptive search. No pre-emptive ingest.**
-   The topic, context, and direction all emerge from what the user
-   writes next.
-4. If the user provided initial words, record them as the first
-   `**User:**` entry and respond.
-5. If the user provided only `/socrates`, acknowledge briefly
-   ("Session started — what's on your mind?") and wait.
-6. If the user provided a URL, run the ingest skill
-   (see "Mid-dialogue ingestion"). The dialogue starts once the
-   sub-agent returns its summary.
+1. Start a new transcribator session — follow `thinkbox/skills/transcribator/SKILL.md > Flow > New session` (generate UUID v7, create `sessions/{uuid}/index.md` with the header). For a Socrates session, use `# Socratic session — {date}` as the header instead of the generic `# Session — {date}`.
+2. Ready to transcribe. **No pre-emptive search. No pre-emptive ingest.** The topic, context, and direction all emerge from what the user writes next.
+3. If the user provided initial words, record them as the first `**User:**` entry and respond.
+4. If the user provided only `/socrates`, acknowledge briefly ("Session started — what's on your mind?") and wait.
+5. If the user provided a URL, run the ingest skill (see "Mid-dialogue ingestion"). The dialogue starts once the sub-agent returns its summary.
 
 ### Resumed session
 
-1. Read `sessions/{uuid}/index.md` — the full transcript.
-2. Append a continuation marker:
-   ```markdown
-
-   ## Resumed — {date}
-
-   ```
-3. Summarize the previous state in 1–2 sentences.
-4. Ask the user what direction to take — continue an open thread,
-   take a new angle, or respond to something they've been thinking
-   about since last time.
-5. **No pre-emptive search.** Searches happen on demand if and when
-   the dialogue calls for them.
+1. Resume via transcribator — follow `thinkbox/skills/transcribator/SKILL.md > Flow > Resumed session` (read the transcript, append a `## Resumed — {date}` marker, summarize previous state in 1–2 sentences).
+2. Ask the user what direction to take — continue an open thread, take a new angle, or respond to something they've been thinking about since last time.
+3. **No pre-emptive search.** Searches happen on demand if and when the dialogue calls for them.
 
 ### During dialogue (both)
 
-1. **Transcribe continuously.** After every user message:
-   - Write the user's words verbatim (lightly cleaned) under `**User:**`
-   - Respond (question, challenge, clarification)
-   - Record a compressed italic summary of the response under `**LLM:**`
+1. **Transcribe continuously via transcribator.** After every user message, follow `thinkbox/skills/transcribator/SKILL.md > Flow > During the session`: append user's words verbatim under `**User:**`, respond (question, challenge, clarification), append a compressed italic summary of the response under `**LLM:**`.
 2. **On-demand search.** When the agent needs to check the knowledge
    base — the user's past position, counter-arguments, related source
    material — use the search skill (`thinkbox/skills/search/SKILL.md`).
@@ -191,25 +128,11 @@ User says `/socrates` with one of:
    process a source, use the ingest skill
    (`thinkbox/skills/ingest/SKILL.md`). It also runs as a Task
    sub-agent with its own context window. See "Mid-dialogue ingestion".
-4. **Topic shift.** If the user switches topics mid-session, insert a
-   header into the transcript before the next exchange:
-   ```markdown
-
-   ## Topic: {new topic}
-
-   ```
-5. **Context emerges.** If the user pastes or describes source
-   material, write it into a `## Context: {label}` section in the
-   transcript before continuing.
-6. **Cards emerge throughout.** See "Output > Cards". Card
-   proposals do not interrupt the dialogue flow.
-7. **Session ends when it ends** — user stops, context fills up, day
-   is over. No "conclusion" phase. The transcript persists; resume
-   any time.
-8. **Cards proposed** during the session go through the standard
-   /card flow (formulate → approve → create file).
-9. **Optional blog.** At any point, draft a blog post from the
-   transcript.
+4. **Topic shifts and source material.** Transcribator handles these via `## Topic:` and `## Context:` headers — see its rules.
+5. **Cards emerge throughout.** See "Output > Cards". Card proposals do not interrupt the dialogue flow.
+6. **Session ends when it ends** — user stops, context fills up, day is over. No "conclusion" phase. The transcript persists; resume any time.
+7. **Cards proposed** during the session go through the standard /card flow (formulate → approve → create file).
+8. **Optional blog.** At any point, draft a blog post from the transcript.
 
 ### Context preservation
 
