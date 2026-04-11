@@ -2,7 +2,7 @@
 name: card
 description: >
   Write and manage cards — Zettelkasten-style atomic notes. Each card is a
-  single thought formatted to fit in 280 characters. Use this skill whenever
+  single thought formatted to fit in 300 characters. Use this skill whenever
   the user mentions "card", asks to turn an idea into a note, draft a
   thread, or formulate a thought concisely. Also triggers when the user
   says "save this as a card" or "make a thread from this."
@@ -40,7 +40,7 @@ Every card is in the user's own words. Never a copy, never a quote-as-content. W
 
 ### Atomicity
 
-One card = one thought. The 280-character limit is not a suggestion — it is the mechanism that enforces this. If you can't say it in 280 characters, either you haven't found the core yet, or it's more than one thought.
+One card = one thought. The 300-character limit is not a suggestion — it is the mechanism that enforces this. If you can't say it in 300 characters, either you haven't found the core yet, or it's more than one thought.
 
 The title test (from Luhmann): if you can give two parts of a card different titles, they are two cards.
 
@@ -71,16 +71,9 @@ Legacy `literature` cards exist in the archive from an earlier convention. Do no
 
 ### Character counting
 
-280 characters is a thinking discipline, not a platform constraint. It is kept regardless of target platform.
+**≤300 characters, no URLs in the body, ever.** The limit matches Bluesky's real constraint but is kept regardless of target platform so cards stay portable.
 
-1. Count all visible characters in the body.
-2. Any URL appearing in the body counts as 23 characters + 1 space separator (the historic t.co budget — kept as a uniform rule so cards stay portable across platforms).
-3. Limits:
-   - Body only: **≤280** chars
-   - Body + 1 URL in body: **≤257** chars
-   - Body + 2 URLs in body: **≤234** chars
-
-Card bodies normally do NOT contain URLs — external references flow through `card_bib`, and bridge refs through `card_ref`. URLs in the body are only for rare cases where the URL is an essential part of the thought.
+External references flow through `card_bib` (the publish layer attaches a link preview card from `bib_url` automatically). Bridge refs flow through `card_ref`. The card body itself is pure prose — no URLs, no markdown, no wikilinks.
 
 ### Frontmatter
 
@@ -104,7 +97,7 @@ software_version: "0.1.0"
 - **card_ref** — UUID of referenced local content. Only on bridge cards. LOCAL only — must point to another card, wiki page, bib entry, or blog post in this knowledge base. External sources go through `card_bib`.
 - **card_bib** — UUID of the bib entry for the source that inspired this card.
 - **card_context** — free text describing what prompted this card.
-- **card_published** — list of `{platform, id, date}` entries, one per platform the card has been published on. Starts empty and is populated by `/publish`. Empty/absent until first publish.
+- **card_published** — list of per-platform publication records. Bluesky entries carry `{platform, id, cid, date}` (AT URI + content hash + publish timestamp). Legacy Twitter entries from the archive carry `{platform, id, date}` (no cid). Starts empty and is populated by `/publish`. Empty/absent until first publish.
 - **software_version** — thinkbox platform version.
 
 ### File naming
@@ -129,7 +122,7 @@ Cards don't link to each other directly. To connect card X and card Y, create a 
 
 1. Z has `card_reply_to: "<X_uuid>"`, `card_ref: "<Y_uuid>"`
 2. Z's text formulates the connection — why X relates to Y
-3. Z's character limit is 280 (bridge refs are in frontmatter, not the body)
+3. Z's character limit is 300 (bridge refs are in frontmatter, not the body)
 
 ### Direction
 
@@ -146,7 +139,7 @@ A thread is a chain of `card_reply_to` connections. No separate thread object. T
 
 ## Workflow
 
-1. **Formulate:** User provides a thought (in any language). Agent formulates it in English, ≤280 chars, proposes placement (root or reply_to).
+1. **Formulate:** User provides a thought (in any language). Agent formulates it in English, ≤300 chars, proposes placement (root or reply_to).
 2. **Approve:** User approves the text and placement.
 3. **Create file:** Agent generates a UUID v7 (`thinkbox/scripts/uuid7.sh`) and creates `content/cards/{uuid}.md` with frontmatter and body. `card_published` starts empty.
 4. **Commit:** `card: {short description}`
@@ -169,5 +162,5 @@ card_context: "chat {date}, {topic}"
 card_published: []
 software_version: "0.1.0"
 ---
-Card text here, plain text, ≤280 chars.
+Card text here, plain text, ≤300 chars, no URLs.
 ```

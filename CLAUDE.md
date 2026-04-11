@@ -15,10 +15,10 @@ See `ARCHITECTURE.md` for the full system design. This file covers conventions t
 ### Cards (`content/cards/`)
 - Frontmatter: `card_type`, `card_created`, `card_reply_to`, `card_ref`, `card_bib`, `card_context`, `card_published`, `software_version`
 - Filename IS the card ID — no `card_id` field inside the file.
-- Body: plain text, no markdown, no wikilinks, English only
-- Character limits: 280 (body only), 257 (with 1 URL in body), 234 (with 2 URLs in body)
+- Body: plain text, no markdown, no wikilinks, no URLs, English only
+- Character limit: 300 chars (matches Bluesky). URLs never appear in the body — external refs flow through `card_bib` and become a link-preview embed on publish.
 - File naming: `{uuid7}.md`
-- `card_published` is a list of `{platform, id, date}` entries — one per platform the card has been published to. Empty/absent until first publish.
+- `card_published` is a list of per-platform publication records. Bluesky entries carry `{platform, id, cid, date}`; legacy Twitter entries in the archive carry `{platform, id, date}`. Empty/absent until first publish.
 
 ### Blog (`content/blog/`)
 - Frontmatter: `title`, `description`, `date`, `featured_image`, `software_version`
@@ -94,11 +94,12 @@ Some skills run their work in a Task tool sub-agent to protect the main session'
 
 ## Character counting for cards
 
-280 characters is a thinking discipline, not a platform constraint. It is kept regardless of target platform.
+`len(body) ≤ 300`. Plain and flat (matches Bluesky's real limit).
 
-1. Count all visible characters in the body
-2. Any URL appearing in the body counts as 23 characters + 1 space separator (the historic t.co budget — kept as a uniform rule so cards stay portable across platforms)
-3. Limits:
-   - Body only: **280** chars
-   - Body + 1 URL: **257** chars (280 - 23)
-   - Body + 2 URLs: **234** chars (280 - 23 - 23)
+Cards never contain URLs. External references live in `card_bib` and become a link-preview embed (Bluesky external card) on publish. This means:
+
+- For literature cards (`card_bib` set), the reader still sees the source URL — not as raw text inside the post, but as a preview card rendered by the platform from `bib_url`, `bib_title`, and the first paragraph of the bib body.
+- The card file itself stays portable, searchable, and URL-free.
+- The whole 300 chars are available for prose.
+
+`publish.py` enforces the 300-char limit on the card body before any network call and errors out with `error: card over limit (body=X, limit=300)` if you're over.
