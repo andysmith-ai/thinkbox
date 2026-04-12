@@ -13,10 +13,11 @@ See `ARCHITECTURE.md` for the full system design. This file covers conventions t
 - File naming: `slug.md` (e.g. `continuous-assembly.md`, `moc-ai-agents.md`)
 
 ### Cards (`content/cards/`)
-- Frontmatter: `card_type`, `card_created`, `card_reply_to`, `card_ref`, `card_bib`, `card_context`, `card_published`, `software_version`
+- Frontmatter: `card_type`, `card_created`, `card_reply_to`, `card_ref`, `card_bib`, `card_embed_url`, `card_images`, `card_context`, `card_published`, `software_version`
+- `card_type`: `permanent` (user's thoughts) or `literature` (source-derived ideas)
 - Filename IS the card ID — no `card_id` field inside the file.
 - Body: plain text, no markdown, no wikilinks, no URLs, English only
-- Character limit: 300 chars (matches Bluesky). URLs never appear in the body — external refs flow through `card_bib` and become a link-preview embed on publish.
+- Character limit: 300 chars (matches Bluesky). URLs never appear in the body — external refs flow through `card_bib` for provenance. Link previews are controlled by `card_embed_url`.
 - File naming: `{uuid7}.md`
 - `card_published` is a list of per-platform publication records. Bluesky entries carry `{platform, id, cid, date}`; legacy Twitter entries in the archive carry `{platform, id, date}`. Empty/absent until first publish.
 
@@ -98,7 +99,7 @@ Some skills run their work in a Task tool sub-agent to protect the main session'
 
 Cards never contain URLs. External references live in `card_bib` and become a link-preview embed (Bluesky external card) on publish. This means:
 
-- For literature cards (`card_bib` set), the reader still sees the source URL — not as raw text inside the post, but as a preview card rendered by the platform from `bib_url`, `bib_title`, and the first paragraph of the bib body.
+- For cards with `card_embed_url` set, the reader sees the source URL — not as raw text inside the post, but as a link-preview card rendered by the platform from metadata fetched via CardyB. Typically only the root card of a literature thread has this field.
 - The card file itself stays portable, searchable, and URL-free.
 - The whole 300 chars are available for prose.
 

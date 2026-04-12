@@ -106,6 +106,35 @@ def build_embed(args: argparse.Namespace):
     return models.AppBskyEmbedRecord.Main(record=quoted)
 
 
+def build_images_embed(image_paths: list[str], client) -> object | None:
+    """Upload images and return an images embed, or None.
+
+    Each path must be a local file. Uploaded via com.atproto.repo.uploadBlob.
+    Bluesky allows up to 4 images per post.
+    """
+    if not image_paths:
+        return None
+    if len(image_paths) > 4:
+        sys.stderr.write("error: maximum 4 images per post\n")
+        sys.exit(2)
+    images = []
+    for path in image_paths:
+        try:
+            with open(path, "rb") as f:
+                img_bytes = f.read()
+        except OSError as e:
+            sys.stderr.write(f"error: cannot read --image {path}: {e}\n")
+            sys.exit(2)
+        upload = client.upload_blob(img_bytes)
+        images.append(
+            models.AppBskyEmbedImages.Image(
+                image=upload.blob,
+                alt="",
+            )
+        )
+    return models.AppBskyEmbedImages.Main(images=images)
+
+
 def build_external_embed(args: argparse.Namespace, thumb=None):
     """Return an external embed (link preview card) or None.
 
@@ -208,6 +237,15 @@ def main() -> None:
             "as `thumb` on the embed. Optional."
         ),
     )
+    parser.add_argument(
+        "--image",
+        action="append",
+        default=[],
+        help=(
+            "Local path to an image to attach. Can be repeated up to 4 times. "
+            "Cannot be combined with --embed-uri or --quote-uri."
+        ),
+    )
     args = parser.parse_args()
 
     handle = require_env("BLUESKY_HANDLE")
@@ -241,13 +279,23 @@ def main() -> None:
         thumb = upload_response.blob
 
     external_embed = build_external_embed(args, thumb=thumb)
-    if quote_embed and external_embed:
+    images_embed = build_images_embed(args.image, client)
+
+    embeds = [e for e in [quote_embed, external_embed, images_embed] if e]
+    if len(embeds) > 1:
+        names = []
+        if quote_embed:
+            names.append("--quote-uri")
+        if external_embed:
+            names.append("--embed-uri")
+        if images_embed:
+            names.append("--image")
         sys.stderr.write(
-            "error: --quote-uri and --embed-uri cannot be combined "
-            "(record+external requires recordWithMedia, not implemented)\n"
+            f"error: cannot combine {' and '.join(names)} "
+            "(only one embed type per post)\n"
         )
         sys.exit(2)
-    embed = quote_embed or external_embed
+    embed = embeds[0] if embeds else None
 
     facets = build_facets(args.text)
 

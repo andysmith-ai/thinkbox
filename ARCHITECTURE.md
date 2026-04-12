@@ -35,6 +35,7 @@ project-root/
         ├── ingest/SKILL.md      ← article ingestion (runs in sub-agent)
         ├── ingest-repo/SKILL.md ← repo ingestion (runs in sub-agent)
         ├── card/SKILL.md
+        ├── lit-thread/SKILL.md  ← literature card thread from bib entry
         ├── wiki/SKILL.md
         ├── publish/SKILL.md
         └── socrates/SKILL.md
@@ -135,7 +136,9 @@ The user's own atomic, transferable thoughts. 280 characters. One card = one ide
 
 The LLM helps formulate but never writes cards autonomously — every card must pass through the user.
 
-**All cards are permanent.** There is no literature or fleeting type. Recording external knowledge is wiki's job. Cards are always the user's voice. If a thought is inspired by an external source, it's still a permanent card — the source is tracked in the `card_bib` field.
+**Two card types:**
+- **permanent** — the user's own thoughts. Default type.
+- **literature** — atomic ideas extracted from external sources. Each literature card captures one key idea from a book, article, or paper in the user's own reformulation. The source is tracked in `card_bib`. Literature cards are typically created as threads: a root card with a link preview (via `card_embed_url`) followed by one card per atomic idea, each chained via `card_reply_to`.
 
 **Cards do NOT contain links to the site.** Pure text, platform-independent. Wiki, bib, and blog posts may contain site links.
 
@@ -146,11 +149,14 @@ The LLM helps formulate but never writes cards autonomously — every card must 
 **Format:**
 ```yaml
 ---
-card_type: permanent
+card_type: permanent                                     # or "literature" for source-derived cards
 card_created: 2026-04-02T07:09:41.249Z
 card_reply_to: "4e64b031-3940-7583-8cee-4d2caaed9496"  # optional, thread placement (local UUID)
 card_ref: "4e740921-63e0-7781-bff2-fb4d9c8a6186"        # optional, bridge card (local UUID)
 card_bib: "069cf951-a5fa-7141-8000-..."                 # optional, external source that inspired the card
+card_embed_url: "https://example.com/article"           # optional, URL for link-preview embed on publish
+card_images:                                             # optional, image URLs to attach on publish
+  - "https://cdn.example.com/image.png"
 card_context: "chat 2026-04-05, ..."                    # optional, what prompted the card
 card_published:                                          # optional, filled in by /publish
   - platform: twitter
@@ -163,6 +169,10 @@ software_version: "0.1.0"
 Body: card text, plain text, no markdown.
 
 **External references — law:** every external reference is a bib entry. `card_ref` is strictly local UUID → local UUID. External sources flow through `card_bib`.
+
+**Link preview embeds:** controlled by `card_embed_url`. When present, the publish script fetches metadata for the URL and attaches a link-preview card. Typically only set on the root card of a literature thread — reply cards in the same thread have `card_bib` for provenance but no embed.
+
+**Image attachments:** controlled by `card_images`. A list of image URLs to download and attach on publish. Up to 4 images per card. Mutually exclusive with `card_embed_url` and `card_ref` (only one embed type per post). The publish script downloads images to a temp directory at publish time — no binary files in the content repo. Typically used on literature thread reply cards to attach diagrams from the source article.
 
 **Character limits:**
 - Body only: ≤280 chars

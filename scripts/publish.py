@@ -20,7 +20,7 @@ Refuses cleanly if:
     target platform — publish the dependency first
   - A linked card file is missing
   - The body exceeds the 300-char limit (URLs never belong in card
-    bodies; external refs flow through card_bib as a link preview embed)
+    bodies; link previews are controlled by card_embed_url)
 """
 
 import argparse
@@ -41,16 +41,14 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 ROOT = SCRIPT_DIR.parent.parent  # thinkbox/scripts -> thinkbox -> repo root
 CONTENT_DIR = ROOT / "content"
 CARDS_DIR = CONTENT_DIR / "cards"
-BIB_DIR = CONTENT_DIR / "bib"
 PUBLISHERS_DIR = SCRIPT_DIR / "publishers"
 
 # Hardcoded fan-out targets. Adding a new platform = drop a new
 # publishers/<name>.{sh,py} pair and append the name here.
 PLATFORMS = ["bluesky"]
 
-# Cards must not contain URLs in the body; external references flow
-# through card_bib and become a link-preview embed on publish. So the
-# char count is just the visible body length.
+# Cards must not contain URLs in the body; link previews are controlled
+# by card_embed_url. The char count is just the visible body length.
 LIMIT = 300
 
 # Round-trip YAML for the target card's frontmatter (preserves comments,
@@ -230,36 +228,6 @@ def download_image(url: str, dest_dir: Path) -> Path:
     return Path(tmp.name)
 
 
-def load_bib(bib_uuid: str) -> tuple[dict | None, str]:
-    """Return (frontmatter_dict, body_stripped) for a bib entry, or (None, "").
-
-    Used only to resolve `bib_url` for CardyB lookups. Embed title,
-    description, and thumbnail all come from CardyB — not from
-    `bib_title` or the bib body — so that what the post renders matches
-    what Bluesky's own composer would have rendered for the same URL.
-    """
-    bib_path = BIB_DIR / f"{bib_uuid}.md"
-    if not bib_path.exists():
-        return None, ""
-    try:
-        raw = bib_path.read_text()
-    except OSError:
-        return None, ""
-    if not raw.startswith("---\n"):
-        return None, ""
-    end = raw.find("\n---\n", 4)
-    if end == -1:
-        return None, ""
-    try:
-        fm = yaml_safe.load(io.StringIO(raw[4 : end + 1])) or None
-    except Exception:
-        return None, ""
-    body = raw[end + len("\n---\n") :].strip()
-    if not isinstance(fm, dict):
-        return None, body
-    return fm, body
-
-
 def load_all_cards() -> dict:
     """Return {uuid: frontmatter_dict} for every card in content/cards/.
 
@@ -385,16 +353,21 @@ def build_platform_args(
     parent_entry: dict | None,
     root_entry: dict | None,
     ref_entry: dict | None,
-    bib_data: dict | None,
+    embed_url: str | None,
+    card_images: list[str],
     tmp_dir: Path,
 ) -> list[str]:
     """Translate resolved card_published[] entries into platform CLI args.
 
-    For literature cards with a `bib_url`, this calls CardyB to fetch
-    the link-preview metadata (title / description / image) and
+    When `embed_url` is set (from card_embed_url), calls CardyB to
+    fetch link-preview metadata (title / description / image) and
     downloads the image into `tmp_dir`. Any CardyB or image-download
-    failure aborts the publish — we never post a literature card with
-    a bare link.
+    failure aborts the publish — we never post a card with a broken
+    link preview.
+
+    When `card_images` is set, each path is passed as --image to the
+    publisher. Images and embed_url are mutually exclusive (only one
+    embed type per post).
     """
     if platform != "bluesky":
         raise SystemExit(
@@ -423,23 +396,29 @@ def build_platform_args(
             "--quote-uri", ref_entry["id"],
             "--quote-cid", ref_entry["cid"],
         ]
-    # Literature cards: use CardyB to build an external link preview.
-    # Skip silently if the card has no bib, or if the card already
-    # carries a quote (record+external needs recordWithMedia; bluesky.py
-    # refuses that combo anyway).
-    if bib_data and not ref_entry:
-        bib_url = bib_data.get("bib_url")
-        if bib_url:
-            cardyb = fetch_cardyb(bib_url)
-            title = cardyb["title"].strip()
-            description = (cardyb.get("description") or "").strip()
-            args += ["--embed-uri", bib_url, "--embed-title", title]
-            if description:
-                args += ["--embed-description", description]
-            image_url = cardyb.get("image")
-            if image_url:
-                thumb_path = download_image(image_url, tmp_dir)
-                args += ["--embed-thumb", str(thumb_path)]
+    # Link preview: use CardyB to build an external embed from
+    # card_embed_url. Skip if the card already carries a quote
+    # (record+external needs recordWithMedia; bluesky.py refuses
+    # that combo anyway). Also skip if card_images is set (only
+    # one embed type per post).
+    if embed_url and not ref_entry and not card_images:
+        cardyb = fetch_cardyb(embed_url)
+        title = cardyb["title"].strip()
+        description = (cardyb.get("description") or "").strip()
+        args += ["--embed-uri", embed_url, "--embed-title", title]
+        if description:
+            args += ["--embed-description", description]
+        image_url = cardyb.get("image")
+        if image_url:
+            thumb_path = download_image(image_url, tmp_dir)
+            args += ["--embed-thumb", str(thumb_path)]
+    # Image attachments: download each URL to tmp_dir and pass
+    # as --image to publisher. Skip if embed_url or quote is
+    # already set (only one embed type per post).
+    if card_images and not ref_entry and not embed_url:
+        for img_url in card_images:
+            img_path = download_image(img_url, tmp_dir)
+            args += ["--image", str(img_path)]
     return args
 
 
@@ -568,10 +547,8 @@ def main() -> None:
 
     all_cards = load_all_cards()
 
-    bib_data: dict | None = None
-    bib_uuid = data.get("card_bib")
-    if bib_uuid:
-        bib_data, _ = load_bib(bib_uuid)
+    embed_url: str | None = data.get("card_embed_url") or None
+    card_images: list[str] = data.get("card_images") or []
 
     already = data.get("card_published") or []
     already_platforms = {
@@ -598,7 +575,8 @@ def main() -> None:
             parent_entry, root_entry = resolve_reply(data, all_cards, platform)
             ref_entry = resolve_ref(data, all_cards, platform)
             extra_args = build_platform_args(
-                platform, parent_entry, root_entry, ref_entry, bib_data, tmp_dir
+                platform, parent_entry, root_entry, ref_entry,
+                embed_url, card_images, tmp_dir,
             )
             plan.append(
                 (platform, parent_entry, root_entry, ref_entry, extra_args)
@@ -613,6 +591,8 @@ def main() -> None:
             print(f"reply_to: {reply_to}")
         if ref:
             print(f"card_ref: {ref}")
+        if card_images:
+            print(f"images:   {len(card_images)}")
         print("--- post ---")
         print(body_stripped)
         print("--- end ----")

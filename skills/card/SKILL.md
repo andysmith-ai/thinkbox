@@ -56,9 +56,12 @@ The box should actively seek disagreement. Dis-confirming data is more valuable 
 
 ## Card type
 
-**All new cards are permanent.** Cards are the user's own voice. If a thought is inspired by an external source, it's still a permanent card — the source is tracked in `card_bib` metadata.
+Two types:
 
-Legacy `literature` cards exist in the archive from an earlier convention. Do not create new literature cards.
+- **permanent** — the user's own thoughts. Default type for `/card`.
+- **literature** — atomic ideas extracted from external sources (books, articles, papers). Each literature card captures one key idea in the user's reformulation. The source is tracked in `card_bib`. Literature cards are created by the `/lit-thread` skill, not by `/card`.
+
+The `/card` skill always creates permanent cards. Literature cards are created through a separate flow that reads wiki pages linked to a bib entry and produces a thread.
 
 ## Card format
 
@@ -84,6 +87,9 @@ card_created: 2026-04-05T12:34:56.000Z
 card_reply_to: "4e6101fa-c998-7b33-a2e2-621a532edee3"   # optional, thread placement
 card_ref: "4e72ff2a-2008-7132-a43b-0a2a4ed04ce0"         # optional, bridge cards
 card_bib: "069cf951-a5fa-7141-8000-494f71cd145d"         # optional, source that inspired the card
+card_embed_url: "https://example.com/article"            # optional, link preview on publish
+card_images:                                              # optional, image URLs to attach on publish
+  - "https://cdn.example.com/image.png"
 card_context: "chat 2026-04-05, knowledge integration"   # optional, what prompted the card
 card_published: []                                        # filled in by /publish
 software_version: "0.1.0"
@@ -91,11 +97,13 @@ software_version: "0.1.0"
 ```
 
 - **filename IS the card ID** — a UUID v7 string. There is no `card_id` field inside the file.
-- **card_type** — always `permanent`.
+- **card_type** — `permanent` (user's thoughts) or `literature` (source-derived ideas).
 - **card_created** — ISO 8601 timestamp when the card file was created.
 - **card_reply_to** — UUID of parent card. Absent for root cards. LOCAL only (must point to another card file in `content/cards/`).
 - **card_ref** — UUID of referenced local content. Only on bridge cards. LOCAL only — must point to another card, wiki page, bib entry, or blog post in this knowledge base. External sources go through `card_bib`.
 - **card_bib** — UUID of the bib entry for the source that inspired this card.
+- **card_embed_url** — URL for a link-preview embed on publish. When present, the publisher fetches metadata via CardyB and attaches a link card. Typically set only on the root card of a literature thread.
+- **card_images** — list of image URLs to download and attach on publish. Up to 4 per card. Mutually exclusive with `card_embed_url` and `card_ref`. Downloaded to temp dir at publish time; no binary files in content repo.
 - **card_context** — free text describing what prompted this card.
 - **card_published** — list of per-platform publication records. Bluesky entries carry `{platform, id, cid, date}` (AT URI + content hash + publish timestamp). Legacy Twitter entries from the archive carry `{platform, id, date}` (no cid). Starts empty and is populated by `/publish`. Empty/absent until first publish.
 - **software_version** — thinkbox platform version.

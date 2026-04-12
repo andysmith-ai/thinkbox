@@ -36,8 +36,8 @@ appends a `card_published[]` entry back to the card file, and
      first.
    - `card_ref` → referenced card's `card_published[]` entry (becomes
      a quote post on Bluesky).
-   - `card_bib` → bib entry's `bib_url` + `bib_title` + first paragraph
-     of the bib body (becomes an external link preview card).
+   - `card_embed_url` → URL for external link preview (CardyB fetches
+     title, description, image; becomes a link card on Bluesky).
 4. **Fan out** to every platform in the orchestrator's `PLATFORMS`
    list (currently: `bluesky`). Each target already present in
    `card_published[]` is skipped per-platform (double-post refusal).
@@ -61,9 +61,10 @@ and nothing gets posted.
   resolver walks `card_reply_to` to the topmost ancestor.
 - **Bridge cards** — `card_ref` becomes a quote post (Bluesky record
   embed).
-- **Literature cards with link previews** — `card_bib` drives an
-  external embed (`uri` = `bib_url`, `title` = `bib_title`,
-  `description` = first paragraph of bib body).
+- **Cards with link previews** — `card_embed_url` drives an
+  external embed (CardyB fetches title, description, image from
+  the URL). Typically only the root card of a literature thread
+  has this field set.
 - **Reply + quote combined** — a reply card with `card_ref` posts as
   a reply to its parent AND quotes the referenced card.
 - **Clickable URLs in text** — `publishers/bluesky.py` builds rich-text
