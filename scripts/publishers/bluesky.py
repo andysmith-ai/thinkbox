@@ -106,13 +106,17 @@ def build_embed(args: argparse.Namespace):
     return models.AppBskyEmbedRecord.Main(record=quoted)
 
 
-def build_external_embed(args: argparse.Namespace):
+def build_external_embed(args: argparse.Namespace, thumb=None):
     """Return an external embed (link preview card) or None.
 
     Bluesky renders a link-preview card when a post carries an external
-    embed with title/description (and optionally a thumbnail blob, not
-    implemented here). Purely optional — without it, URLs in facets are
-    clickable but render inline, not as a rich card.
+    embed with title/description and an optional thumbnail blob. Without
+    it, URLs in facets are clickable but render inline, not as a rich
+    card.
+
+    `thumb` is a BlobRef previously uploaded via client.upload_blob(),
+    or None. The blob upload itself happens in main() after login — this
+    function just assembles the embed.
     """
     if not args.embed_uri:
         return None
@@ -123,6 +127,7 @@ def build_external_embed(args: argparse.Namespace):
         uri=args.embed_uri,
         title=args.embed_title,
         description=args.embed_description or "",
+        thumb=thumb,
     )
     return models.AppBskyEmbedExternal.Main(external=external)
 
@@ -195,6 +200,14 @@ def main() -> None:
         "--embed-description",
         help="Description for the external link preview (optional)",
     )
+    parser.add_argument(
+        "--embed-thumb",
+        help=(
+            "Local path to a thumbnail image for the external link preview. "
+            "Uploaded as a blob via com.atproto.repo.uploadBlob and attached "
+            "as `thumb` on the embed. Optional."
+        ),
+    )
     args = parser.parse_args()
 
     handle = require_env("BLUESKY_HANDLE")
@@ -202,7 +215,32 @@ def main() -> None:
 
     reply_to = build_reply_ref(args)
     quote_embed = build_embed(args)
-    external_embed = build_external_embed(args)
+
+    client = Client()
+    client.login(handle, app_password)
+
+    # Upload the thumbnail blob (if any) before assembling the embed.
+    # Blob upload requires an authenticated client, so it must happen
+    # after login. The returned blob ref goes into AppBskyEmbedExternal.
+    thumb = None
+    if args.embed_thumb:
+        if not args.embed_uri:
+            sys.stderr.write(
+                "error: --embed-thumb requires --embed-uri\n"
+            )
+            sys.exit(2)
+        try:
+            with open(args.embed_thumb, "rb") as f:
+                thumb_bytes = f.read()
+        except OSError as e:
+            sys.stderr.write(
+                f"error: cannot read --embed-thumb {args.embed_thumb}: {e}\n"
+            )
+            sys.exit(2)
+        upload_response = client.upload_blob(thumb_bytes)
+        thumb = upload_response.blob
+
+    external_embed = build_external_embed(args, thumb=thumb)
     if quote_embed and external_embed:
         sys.stderr.write(
             "error: --quote-uri and --embed-uri cannot be combined "
@@ -213,8 +251,6 @@ def main() -> None:
 
     facets = build_facets(args.text)
 
-    client = Client()
-    client.login(handle, app_password)
     response = client.send_post(
         text=args.text, facets=facets, reply_to=reply_to, embed=embed
     )

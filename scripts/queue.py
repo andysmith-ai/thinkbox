@@ -116,7 +116,7 @@ def main() -> None:
     queue = {
         uuid: (path, data, body)
         for uuid, (path, data, body) in all_cards.items()
-        if not is_published_to(data, platform)
+        if not is_published_to(data, platform) and not data.get("card_archived")
     }
 
     if not queue:

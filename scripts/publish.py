@@ -28,6 +28,10 @@ import io
 import json
 import subprocess
 import sys
+import tempfile
+import urllib.error
+import urllib.parse
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -78,12 +82,161 @@ def assemble(fm_text: str, body: str) -> str:
     return "---\n" + fm_text + "---\n" + body
 
 
+CARDYB_ENDPOINT = "https://cardyb.bsky.app/v1/extract"
+HTTP_TIMEOUT = 30
+# Some origins (observed: opengraph.githubassets.com) refuse non-browser
+# User-Agent strings and return 429 / 403 to anything that looks like a
+# bot. We're fetching a single image per publish — exactly what a
+# browser rendering the page would do — so a browser-compatible UA is
+# the honest identifier here.
+USER_AGENT = (
+    "Mozilla/5.0 (X11; Linux x86_64; thinkbox-publish/0.1) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) Safari/537.36"
+)
+
+
+def fetch_cardyb(url: str) -> dict:
+    """Call Bluesky's CardyB unfurl service and return its JSON result.
+
+    CardyB is the canonical link-preview service used by Bluesky's own
+    web composer. Same metadata shape that `bsky.app` would render if
+    the URL were pasted into a post. Free, no API key, no documented
+    rate limits — but also undocumented and unsupported, so any change
+    on their side is our problem.
+
+    Response shape:
+        {
+            "error": "",           # empty on success; populated on failure
+            "likely_type": "",
+            "url":   "<canonical url>",
+            "title": "<title>",
+            "description": "<description>",
+            "image": "<image url, proxied through cardyb.bsky.app>"
+        }
+
+    Fails hard on any HTTP error, network failure, JSON parse error,
+    non-empty `error` field, or missing title. The publish pipeline
+    refuses to post a literature card without a usable embed — better
+    to abort loudly than to post a bare link.
+    """
+    endpoint = f"{CARDYB_ENDPOINT}?url={urllib.parse.quote(url, safe='')}"
+    req = urllib.request.Request(endpoint, headers={"User-Agent": USER_AGENT})
+    try:
+        with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT) as resp:
+            if resp.status != 200:
+                raise SystemExit(
+                    f"error: CardyB returned HTTP {resp.status} for {url}"
+                )
+            payload = resp.read()
+    except urllib.error.URLError as e:
+        raise SystemExit(f"error: CardyB request failed for {url}: {e}")
+
+    try:
+        data = json.loads(payload)
+    except json.JSONDecodeError as e:
+        raise SystemExit(
+            f"error: CardyB returned non-JSON for {url}: {e}"
+        )
+
+    if not isinstance(data, dict):
+        raise SystemExit(f"error: CardyB returned non-object for {url}")
+
+    err = data.get("error") or ""
+    if err:
+        raise SystemExit(
+            f"error: CardyB failed to extract metadata for {url}: {err}"
+        )
+    if not data.get("title"):
+        raise SystemExit(
+            f"error: CardyB returned no title for {url} "
+            f"(likely_type={data.get('likely_type')!r})"
+        )
+    return data
+
+
+def _unwrap_cardyb_image(url: str) -> str | None:
+    """If `url` is a CardyB image-proxy URL, return the origin URL it wraps.
+
+    CardyB returns image URLs of the form
+        https://cardyb.bsky.app/v1/image?url=<url-encoded origin>
+    from its /v1/extract endpoint. The proxy is sometimes flaky for
+    specific origins (observed 400 "Unable to serve image from URL" for
+    some GitHub OpenGraph images), but the origin itself is fine to
+    fetch directly. This helper extracts the origin so download_image
+    can fall back to it.
+    """
+    parsed = urllib.parse.urlparse(url)
+    if parsed.netloc != "cardyb.bsky.app" or parsed.path != "/v1/image":
+        return None
+    qs = urllib.parse.parse_qs(parsed.query)
+    values = qs.get("url") or []
+    return values[0] if values else None
+
+
+def _fetch_bytes(url: str) -> bytes | None:
+    """GET a URL. Return body bytes on 200, None on any non-success.
+
+    Used only by download_image's two-phase fallback — all real
+    diagnostics bubble up from download_image itself, so here we just
+    swallow and signal "not this one."
+    """
+    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    try:
+        with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT) as resp:
+            if resp.status != 200:
+                return None
+            data = resp.read()
+    except urllib.error.URLError:
+        return None
+    return data or None
+
+
+def download_image(url: str, dest_dir: Path) -> Path:
+    """Download an image URL to a new file in dest_dir. Fail hard on error.
+
+    CardyB usually returns a proxied URL (cardyb.bsky.app/v1/image?url=
+    <origin>). We try that first — it's their canonical, cached,
+    normalized form. If it fails (observed: occasional 400 "Unable to
+    serve image from URL" for specific GitHub OG images), we unwrap the
+    `url` query parameter and try the origin directly.
+
+    Any total failure (both sources empty) aborts the publish. Better
+    loud than silent: literature cards without thumbnails should be a
+    conscious choice, not a side effect of a flaky proxy.
+
+    No content-type sniffing — the Bluesky blob upload accepts whatever
+    bytes we pass and infers the MIME type server-side.
+    """
+    data = _fetch_bytes(url)
+    source = url
+
+    if data is None:
+        origin = _unwrap_cardyb_image(url)
+        if origin:
+            data = _fetch_bytes(origin)
+            source = origin
+
+    if data is None:
+        raise SystemExit(f"error: image download failed for {url}")
+
+    tmp = tempfile.NamedTemporaryFile(
+        dir=dest_dir, delete=False, suffix=".img"
+    )
+    try:
+        tmp.write(data)
+    finally:
+        tmp.close()
+    print(f"   image downloaded from {source} ({len(data)} bytes)")
+    return Path(tmp.name)
+
+
 def load_bib(bib_uuid: str) -> tuple[dict | None, str]:
     """Return (frontmatter_dict, body_stripped) for a bib entry, or (None, "").
 
-    Used for building external link-preview embeds on platforms that
-    support them (Bluesky): title from bib_title, description from the
-    first paragraph of the bib body, uri from bib_url.
+    Used only to resolve `bib_url` for CardyB lookups. Embed title,
+    description, and thumbnail all come from CardyB — not from
+    `bib_title` or the bib body — so that what the post renders matches
+    what Bluesky's own composer would have rendered for the same URL.
     """
     bib_path = BIB_DIR / f"{bib_uuid}.md"
     if not bib_path.exists():
@@ -233,9 +386,16 @@ def build_platform_args(
     root_entry: dict | None,
     ref_entry: dict | None,
     bib_data: dict | None,
-    bib_body: str,
+    tmp_dir: Path,
 ) -> list[str]:
-    """Translate resolved card_published[] entries into platform CLI args."""
+    """Translate resolved card_published[] entries into platform CLI args.
+
+    For literature cards with a `bib_url`, this calls CardyB to fetch
+    the link-preview metadata (title / description / image) and
+    downloads the image into `tmp_dir`. Any CardyB or image-download
+    failure aborts the publish — we never post a literature card with
+    a bare link.
+    """
     if platform != "bluesky":
         raise SystemExit(
             f"error: no link-argument translation defined for platform {platform}"
@@ -263,22 +423,23 @@ def build_platform_args(
             "--quote-uri", ref_entry["id"],
             "--quote-cid", ref_entry["cid"],
         ]
-    # Literature cards: use the bib entry to build an external link
-    # preview card. Skip silently if the card has no bib, if bib_url is
-    # missing, or if the card already carries a quote (record+external
-    # needs recordWithMedia; bluesky.py refuses that combo anyway).
+    # Literature cards: use CardyB to build an external link preview.
+    # Skip silently if the card has no bib, or if the card already
+    # carries a quote (record+external needs recordWithMedia; bluesky.py
+    # refuses that combo anyway).
     if bib_data and not ref_entry:
         bib_url = bib_data.get("bib_url")
         if bib_url:
-            title = (bib_data.get("bib_title") or "").strip() or bib_url
-            description = ""
-            if bib_body:
-                description = bib_body.split("\n\n", 1)[0].strip()
-                if len(description) > 300:
-                    description = description[:299] + "…"
+            cardyb = fetch_cardyb(bib_url)
+            title = cardyb["title"].strip()
+            description = (cardyb.get("description") or "").strip()
             args += ["--embed-uri", bib_url, "--embed-title", title]
             if description:
                 args += ["--embed-description", description]
+            image_url = cardyb.get("image")
+            if image_url:
+                thumb_path = download_image(image_url, tmp_dir)
+                args += ["--embed-thumb", str(thumb_path)]
     return args
 
 
@@ -408,10 +569,9 @@ def main() -> None:
     all_cards = load_all_cards()
 
     bib_data: dict | None = None
-    bib_body: str = ""
     bib_uuid = data.get("card_bib")
     if bib_uuid:
-        bib_data, bib_body = load_bib(bib_uuid)
+        bib_data, _ = load_bib(bib_uuid)
 
     already = data.get("card_published") or []
     already_platforms = {
@@ -421,99 +581,127 @@ def main() -> None:
     targets = [p for p in PLATFORMS if p not in already_platforms]
     skipped = [p for p in PLATFORMS if p in already_platforms]
 
-    # Resolve the link graph for EVERY target up front. This surfaces
-    # blocker errors (missing parent, unresolved ref) before any network
-    # call, so a partial publish never leaves the card in a weird state.
-    plan: list[
-        tuple[str, dict | None, dict | None, dict | None, list[str]]
-    ] = []
-    for platform in targets:
-        parent_entry, root_entry = resolve_reply(data, all_cards, platform)
-        ref_entry = resolve_ref(data, all_cards, platform)
-        extra_args = build_platform_args(
-            platform, parent_entry, root_entry, ref_entry, bib_data, bib_body
-        )
-        plan.append((platform, parent_entry, root_entry, ref_entry, extra_args))
+    # Temp directory for downloaded embed thumbnails. Everything CardyB
+    # gives us (image blobs) goes here and gets cleaned up at the end,
+    # regardless of whether we dry-ran, published, or errored mid-way.
+    tmp_dir = Path(tempfile.mkdtemp(prefix="thinkbox-publish-"))
 
-    reply_to = data.get("card_reply_to")
-    ref = data.get("card_ref")
+    try:
+        # Resolve the link graph for EVERY target up front. This surfaces
+        # blocker errors (missing parent, unresolved ref, CardyB failure)
+        # before any network call to the target platform, so a partial
+        # publish never leaves the card in a weird state.
+        plan: list[
+            tuple[str, dict | None, dict | None, dict | None, list[str]]
+        ] = []
+        for platform in targets:
+            parent_entry, root_entry = resolve_reply(data, all_cards, platform)
+            ref_entry = resolve_ref(data, all_cards, platform)
+            extra_args = build_platform_args(
+                platform, parent_entry, root_entry, ref_entry, bib_data, tmp_dir
+            )
+            plan.append(
+                (platform, parent_entry, root_entry, ref_entry, extra_args)
+            )
 
-    print(f"card:     {args.card}")
-    print(f"chars:    body={body_len} limit={LIMIT}")
-    if reply_to:
-        print(f"reply_to: {reply_to}")
-    if ref:
-        print(f"card_ref: {ref}")
-    print("--- post ---")
-    print(body_stripped)
-    print("--- end ----")
-    print(f"targets:  {', '.join(targets) if targets else '<none>'}")
-    if skipped:
-        print(f"skipped:  {', '.join(skipped)} (already published)")
+        reply_to = data.get("card_reply_to")
+        ref = data.get("card_ref")
 
-    for platform, parent_entry, root_entry, ref_entry, extra_args in plan:
-        if parent_entry:
-            print(f"  {platform}: parent = {parent_entry['id']}")
-            if (
-                root_entry
-                and root_entry.get("id") != parent_entry.get("id")
-            ):
-                print(f"  {platform}: root   = {root_entry['id']}")
-        if ref_entry:
-            print(f"  {platform}: quote  = {ref_entry['id']}")
-        if "--embed-uri" in extra_args:
-            i = extra_args.index("--embed-uri")
-            print(f"  {platform}: embed  = {extra_args[i + 1]}")
+        print(f"card:     {args.card}")
+        print(f"chars:    body={body_len} limit={LIMIT}")
+        if reply_to:
+            print(f"reply_to: {reply_to}")
+        if ref:
+            print(f"card_ref: {ref}")
+        print("--- post ---")
+        print(body_stripped)
+        print("--- end ----")
+        print(f"targets:  {', '.join(targets) if targets else '<none>'}")
+        if skipped:
+            print(f"skipped:  {', '.join(skipped)} (already published)")
 
-    if not targets:
-        print("nothing to do: all configured platforms already published.")
-        return
+        for platform, parent_entry, root_entry, ref_entry, extra_args in plan:
+            if parent_entry:
+                print(f"  {platform}: parent = {parent_entry['id']}")
+                if (
+                    root_entry
+                    and root_entry.get("id") != parent_entry.get("id")
+                ):
+                    print(f"  {platform}: root   = {root_entry['id']}")
+            if ref_entry:
+                print(f"  {platform}: quote  = {ref_entry['id']}")
+            if "--embed-uri" in extra_args:
+                i = extra_args.index("--embed-uri")
+                print(f"  {platform}: embed  = {extra_args[i + 1]}")
+            if "--embed-thumb" in extra_args:
+                i = extra_args.index("--embed-thumb")
+                print(f"  {platform}: thumb  = {extra_args[i + 1]}")
 
-    if args.dry_run:
-        print("dry-run: would call:")
+        if not targets:
+            print("nothing to do: all configured platforms already published.")
+            return
+
+        if args.dry_run:
+            print("dry-run: would call:")
+            for platform, _, _, _, extra_args in plan:
+                arg_str = " ".join(extra_args)
+                print(
+                    f"  {PUBLISHERS_DIR / f'{platform}.sh'} --text <body> {arg_str}"
+                )
+            print("dry-run: no subprocess calls, no file write")
+            return
+
+        new_entries = []
         for platform, _, _, _, extra_args in plan:
-            arg_str = " ".join(extra_args)
-            print(f"  {PUBLISHERS_DIR / f'{platform}.sh'} --text <body> {arg_str}")
-        print("dry-run: no subprocess calls, no file write")
-        return
+            print(f"-> publishing to {platform}...")
+            result = call_publisher(platform, body_stripped, extra_args)
+            # ISO 8601 UTC, millisecond precision, matching existing Twitter
+            # entries in the codebase. This is the actual publish moment,
+            # not card_created — useful for cards that sit in the queue
+            # before being posted.
+            now_iso = (
+                datetime.now(timezone.utc)
+                .isoformat(timespec="milliseconds")
+                .replace("+00:00", "Z")
+            )
+            entry = {"platform": platform, "id": result["id"]}
+            if result.get("cid"):
+                entry["cid"] = result["cid"]
+            entry["date"] = now_iso
+            new_entries.append(entry)
+            print(f"   id={entry['id']}")
+            if entry.get("cid"):
+                print(f"   cid={entry['cid']}")
+            print(f"   date={entry['date']}")
 
-    new_entries = []
-    for platform, _, _, _, extra_args in plan:
-        print(f"-> publishing to {platform}...")
-        result = call_publisher(platform, body_stripped, extra_args)
-        # ISO 8601 UTC, millisecond precision, matching existing Twitter
-        # entries in the codebase. This is the actual publish moment,
-        # not card_created — useful for cards that sit in the queue
-        # before being posted.
-        now_iso = (
-            datetime.now(timezone.utc)
-            .isoformat(timespec="milliseconds")
-            .replace("+00:00", "Z")
-        )
-        entry = {"platform": platform, "id": result["id"]}
-        if result.get("cid"):
-            entry["cid"] = result["cid"]
-        entry["date"] = now_iso
-        new_entries.append(entry)
-        print(f"   id={entry['id']}")
-        if entry.get("cid"):
-            print(f"   cid={entry['cid']}")
-        print(f"   date={entry['date']}")
+        if data.get("card_published"):
+            for entry in new_entries:
+                data["card_published"].append(entry)
+        else:
+            data["card_published"] = new_entries
 
-    if data.get("card_published"):
-        for entry in new_entries:
-            data["card_published"].append(entry)
-    else:
-        data["card_published"] = new_entries
+        buf = io.StringIO()
+        yaml_rt.dump(data, buf)
+        card_path.write_text(assemble(buf.getvalue(), body))
+        print(f"updated:  {card_path.relative_to(ROOT)}")
 
-    buf = io.StringIO()
-    yaml_rt.dump(data, buf)
-    card_path.write_text(assemble(buf.getvalue(), body))
-    print(f"updated:  {card_path.relative_to(ROOT)}")
-
-    if not args.no_commit:
-        published_platforms = [e["platform"] for e in new_entries]
-        auto_commit(card_path, body_stripped, published_platforms)
+        if not args.no_commit:
+            published_platforms = [e["platform"] for e in new_entries]
+            auto_commit(card_path, body_stripped, published_platforms)
+    finally:
+        # Best-effort cleanup of downloaded embed thumbnails. If cleanup
+        # fails (permissions, file in use, etc.) we don't want that to
+        # overwrite a successful publish status, so everything is
+        # swallowed silently.
+        try:
+            for p in tmp_dir.iterdir():
+                try:
+                    p.unlink()
+                except OSError:
+                    pass
+            tmp_dir.rmdir()
+        except OSError:
+            pass
 
 
 if __name__ == "__main__":
